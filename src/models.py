@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict
+from typing import Dict, NamedTuple
 
 from irra.model.clip_model import build_CLIP_from_openai_pretrained, CLIP
 
@@ -16,9 +16,12 @@ from mmdet.datasets import (build_dataloader, build_dataset, replace_ImageToTens
 STRIDE_SIZE = 16
 IMAGE_SIZE = (384, 128)
 
-CONFIG_FILE = Path().cwd() / "configs" / "pstr" / "pstr_r50_24e_cuhk.py"
+CONFIG_FILE = str(Path.cwd() / "configs" / "pstr" / "pstr_r50_24e_cuhk.py")
 WEIGHT_FILE_CLIP = Path().home() / "models" / "clip_finetune.pth"
 WEIGHT_FILE_PSTR = Path().home() / "models" / "pstr_r50_cuhk.pth"
+
+
+
 class PSTR:
     """
     A wrapper object of PSTR from MMDET.
@@ -28,7 +31,7 @@ class PSTR:
     """
     def _load_config(self, config_file: Path) -> mmcv.Config:
         # Load configs file with boiler plate
-        cfg = mmcv.Config.fromfile(Path(config_file))
+        cfg = mmcv.Config.fromfile(str(config_file))
         cfg.model.pretrained = None
         if cfg.model.get('neck'):
             if isinstance(cfg.model.neck, list):
@@ -88,12 +91,13 @@ class PSTR:
         self.dataloader = self._load_dataloader()
         self.model = self._load_model(weight_file)
 
-    def infer(self):
+    def infer(self) -> Dict[Path, torch.Tensor]:
         with torch.no_grad():
-            results = [
-                self.model(return_loss=False, rescale=True, **data)
+            results = {
+                Path(data['img_metas'][0].data[0][0]['filename']):
+                    self.model(return_loss=False, rescale=True, **data)
                 for data in self.dataloader
-            ]
+            }
         return results
 
 
@@ -143,3 +147,4 @@ def load_clip(weight_file: Path = WEIGHT_FILE_CLIP) -> CLIP:
     model, _ = build_CLIP_from_openai_pretrained("ViT-B/16", IMAGE_SIZE, STRIDE_SIZE)
 
     return model.load_state_dict(state_dict)
+
