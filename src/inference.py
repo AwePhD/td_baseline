@@ -1,9 +1,12 @@
 from pathlib import Path
-from typing import NamedTuple, Dict, List
+from typing import NamedTuple, Dict, List, Tuple
 
+import pandas as pd
 import torch
 
-from models import PSTR
+from .tokenizer import SimpleTokenizer, tokenize
+from .cuhk_sysu_pedes import read_annotations_csv
+from .models import PSTR
 
 class ModelOutput(NamedTuple):
     #: (100,)
@@ -31,6 +34,10 @@ class ReIDOutput(NamedTuple):
     # (100, 4)
     features_text: torch.Tensor
 
+class CropIndex(NamedTuple):
+    person_id: int
+    frame_id: int
+
 
 def _get_detector_outputs_by_path() -> Dict[Path, DetectorOutput]:
     results_by_path = PSTR().infer()
@@ -43,8 +50,26 @@ def _get_detector_outputs_by_path() -> Dict[Path, DetectorOutput]:
         for path, result in results_by_path.items()
     }
 
-def _get_features_text(paths: List[Path]) -> List[torch.Tensor]:
-    ...
+def _get_features_text() -> Dict[CropIndex, Tuple[torch.Tensor, torch.Tensor]]:
+    # Import captions from CUHK-SYSU-PEDES annotations
+    _, annotations = read_annotations_csv(
+        Path.home() / "data" / "annotations_train.csv",
+        Path.home() / "data" / "annotations_test.csv",
+    )
+    annotations_query = annotations.query("type == 'query'")
+    captions = pd.concat([annotations_query.caption_1, annotations_query.caption_2])
+
+    tokenizer = SimpleTokenizer()
+    return {
+        CropIndex(*crop_index): (
+            tokenize(captions_pair.iloc[0], tokenizer),
+            tokenize(captions_pair.iloc[1], tokenizer),
+        )
+        for crop_index, captions_pair in captions.groupby(by=['person_id', 'frame_id'])
+
+    }
+
+
 
 def _get_features_image(
     detector_outputs_by_path: Dict[Path, DetectorOutput]
@@ -73,7 +98,6 @@ def _compute_reid_from_detections(
     }
 
 
-
 def main():
     # Get bboxes for each frames
     detector_outputs_by_path = _get_detector_outputs_by_path()
@@ -84,8 +108,8 @@ def main():
         path: ModelOutput(
             scores=detector_outputs_by_path[path].scores,
             bboxes=detector_outputs_by_path[path].bboxes,
-            bboxes=reid_outputs_by_path[path].features_image,
-            bboxes=reid_outputs_by_path[path].features_text,
+            features_image=reid_outputs_by_path[path].features_image,
+            features_text=reid_outputs_by_path[path].features_text,
         )
         for path in detector_outputs_by_path.keys()
     }
