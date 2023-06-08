@@ -2,7 +2,7 @@ from typing import NamedTuple, List, Tuple
 
 import torch
 
-from pstr import PSTR
+from models import PSTR, load_clip
 
 class ModelOutput(NamedTuple):
     score: float
