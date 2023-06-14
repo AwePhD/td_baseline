@@ -4,7 +4,7 @@ from typing import Dict, NamedTuple
 import h5py
 import torch
 
-from .pstr import PSTR
+from pstr import PSTR
 
 H5_FILENAME = "filename_to_detection.h5"
 
@@ -15,12 +15,12 @@ class DetectionOutput(NamedTuple):
     bboxes: torch.Tensor
 
 def export_to_hdf5(
-    frame_path_to_detection: Dict[Path, DetectionOutput],
-    filename: Path
+    frame_file_to_detection: Dict[Path, DetectionOutput],
+    file: Path
 ):
-    with h5py.File(filename, 'w') as f:
-        for frame_path, detection_output in frame_path_to_detection.items():
-            group = f.create_group(frame_path.name)
+    with h5py.File(file, 'w') as f:
+        for frame_file, detection_output in frame_file_to_detection.items():
+            group = f.create_group(frame_file.name)
 
             group.create_dataset('scores', data=detection_output.scores)
             group.create_dataset('bboxes', data=detection_output.bboxes)
@@ -54,9 +54,9 @@ def _get_detector_outputs_by_path(model: PSTR) -> Dict[Path, DetectionOutput]:
 def main():
     model = PSTR()
 
-    frame_path_to_detection = _get_detector_outputs_by_path(model)
+    frame_file_to_detection = _get_detector_outputs_by_path(model)
 
-    export_to_hdf5(frame_path_to_detection, Path.cwd() / "outputs" / H5_FILENAME)
+    export_to_hdf5(frame_file_to_detection, Path.cwd() / "outputs" / H5_FILENAME)
 
 if __name__ == "__main__":
     main()
