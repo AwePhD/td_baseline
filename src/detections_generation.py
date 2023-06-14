@@ -6,6 +6,8 @@ import torch
 
 from pstr import PSTR
 
+H5_FILENAME = "filename_to_detection.h5"
+
 class DetectionOutput(NamedTuple):
     # (100,)
     scores: torch.Tensor
@@ -23,10 +25,10 @@ def export_to_hdf5(
             group.create_dataset('scores', data=detection_output.scores)
             group.create_dataset('bboxes', data=detection_output.bboxes)
 
-def import_from_hdf5(filename: Path, frame_folder: Path) -> Dict[Path, DetectionOutput]:
+def import_from_hdf5(h5_file: Path, frame_folder: Path) -> Dict[Path, DetectionOutput]:
     frame_path_to_detections = {}
 
-    with h5py.File(filename, 'r') as hd5_file:
+    with h5py.File(h5_file, 'r') as hd5_file:
         frame_path_to_detections = {
             frame_folder / frame_filename:
                 DetectionOutput(
@@ -54,8 +56,7 @@ def main():
 
     frame_path_to_detection = _get_detector_outputs_by_path(model)
 
-    h5_filename = "filename_to_detection.h5"
-    export_to_hdf5(frame_path_to_detection, Path.cwd() / "outputs" / h5_filename)
+    export_to_hdf5(frame_path_to_detection, Path.cwd() / "outputs" / H5_FILENAME)
 
 if __name__ == "__main__":
     main()

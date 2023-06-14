@@ -8,8 +8,12 @@ from irra.model.clip_model import CLIP, build_CLIP_from_openai_pretrained
 from tokenizer import SimpleTokenizer, tokenize
 
 from cuhk_sysu_pedes import read_annotations_csv
+from detections_generation import import_from_hdf5, H5_FILENAME, DetectionOutput
 
-WEIGHT_FILE = Path().home() / "models" "clip_finetuned" / "clip_finetune.pth"
+WEIGHT_FILE = Path.home() / "models" "clip_finetuned" / "clip_finetune.pth"
+DATA_FOLDER = Path.home() / "data"
+FRAME_FOLDER = DATA_FOLDER / "frames"
+H5_FILE = Path.cwd() / "outputs" / H5_FILENAME
 STRIDE_SIZE = 16
 IMAGE_SIZE = (384, 128)
 TOKEN_BATCH_SIZE = 512
@@ -31,6 +35,15 @@ def _load_clip(weight_file: Path = WEIGHT_FILE) -> CLIP:
 
     return model
 
+def _import_annotations(data_folder: Path = DATA_FOLDER) -> pd.DataFrame:
+    _, annotations = read_annotations_csv(
+        data_folder / "annotations_train.csv",
+        data_folder / "annotations_test.csv",
+    )
+
+    return annotations
+
+
 def _collate_tokens_dataloader(batch: List[Tuple[CropIndex, Tuple[torch.Tensor, torch.Tensor]]]):
     crop_indexes = [
         sample[0]
@@ -48,15 +61,11 @@ def _collate_tokens_dataloader(batch: List[Tuple[CropIndex, Tuple[torch.Tensor, 
 
     return crop_indexes, tokens
 
-def _get_features_text(
+def _get_text_features(
+    annotations: pd.DataFrame,
     model: CLIP,
     token_batch_size: int = 512
 ) -> Dict[CropIndex, Tuple[torch.Tensor, torch.Tensor]]:
-    # Import captions from CUHK-SYSU-PEDES annotations
-    _, annotations = read_annotations_csv(
-        Path.home() / "data" / "annotations_train.csv",
-        Path.home() / "data" / "annotations_test.csv",
-    )
     annotations_query = annotations.query("type == 'query'")
     captions = pd.concat([annotations_query.caption_1, annotations_query.caption_2])
 
@@ -101,14 +110,25 @@ def _get_features_text(
         for i in range(0, n_samples, 2)
     }
 
+def _get_image_features(
+    model: CLIP,
+    frame_path_to_detection: Dict[Path, DetectionOutput],
+) -> Dict[Path, torch.Tensor]:
+    ...
+
 def main():
     # Import model
     model = _load_clip()
 
+    # Import annotations
+    annotations = _import_annotations()
+
     # Compute text features
-    crop_index_to_text_features = _get_features_text(model)
+    crop_index_to_text_features = _get_text_features(annotations, model)
 
     # Compute image features
+    frame_path_to_detection = import_from_hdf5(H5_FILE, FRAME_FOLDER)
+    frame_to_image_features = _get_image_features(model, frame_path_to_detection)
 
     # Format features
 
