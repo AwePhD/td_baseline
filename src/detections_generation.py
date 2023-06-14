@@ -4,7 +4,7 @@ from typing import Dict, NamedTuple
 import h5py
 import torch
 
-from pstr import PSTR
+from .pstr import PSTR
 
 H5_FILENAME = "filename_to_detection.h5"
 
