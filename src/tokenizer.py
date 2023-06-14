@@ -11,7 +11,7 @@ import torch
 import ftfy
 import regex as re
 
-BPE_FILE = Path.home() / "data" / "bpe_simple_vocab_16e6.txt.gz"
+BPE_FILE = Path.home() / "models"/ "clip_finetuned" / "bpe_simple_vocab_16e6.txt.gz"
 
 
 @lru_cache()
