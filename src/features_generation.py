@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from irra.model.clip_model import CLIP, build_CLIP_from_openai_pretrained
-from tokenizer import SimpleTokenizer, tokenize
+from .tokenizer import SimpleTokenizer, tokenize
 
 from .cuhk_sysu_pedes import read_annotations_csv
 from .detections_generation import import_from_hdf5, H5_FILENAME, DetectionOutput
