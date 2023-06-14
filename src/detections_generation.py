@@ -38,8 +38,8 @@ def import_from_hdf5(filename: Path, frame_folder: Path) -> Dict[Path, Detection
     return frame_path_to_detections
 
 
-def _get_detector_outputs_by_path() -> Dict[Path, DetectionOutput]:
-    results_by_path = PSTR().infer()
+def _get_detector_outputs_by_path(model: PSTR) -> Dict[Path, DetectionOutput]:
+    results_by_path = model.infer()
 
     return {
         path: DetectionOutput(
@@ -52,7 +52,7 @@ def _get_detector_outputs_by_path() -> Dict[Path, DetectionOutput]:
 def main():
     model = PSTR()
 
-    frame_path_to_detection = _get_detector_outputs_by_path()
+    frame_path_to_detection = _get_detector_outputs_by_path(model)
 
     h5_filename = "filename_to_detection.h5"
     export_to_hdf5(frame_path_to_detection, Path.cwd() / "outputs" / h5_filename)
