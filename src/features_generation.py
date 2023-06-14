@@ -4,36 +4,23 @@ from pathlib import Path
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
+from torchvision.io import read_image
 from irra.model.clip_model import CLIP, build_CLIP_from_openai_pretrained
-from .tokenizer import SimpleTokenizer, tokenize
 
+from .tokenizer import SimpleTokenizer, tokenize
+from .clip import load_clip
 from .cuhk_sysu_pedes import read_annotations_csv
 from .detections_generation import import_from_hdf5, H5_FILENAME, DetectionOutput
 
-WEIGHT_FILE = Path.home() / "models" "clip_finetuned" / "clip_finetune.pth"
 DATA_FOLDER = Path.home() / "data"
 FRAME_FOLDER = DATA_FOLDER / "frames"
 H5_FILE = Path.cwd() / "outputs" / H5_FILENAME
-STRIDE_SIZE = 16
-IMAGE_SIZE = (384, 128)
 TOKEN_BATCH_SIZE = 512
 
 class CropIndex(NamedTuple):
     person_id: int
     frame_id: int
 
-
-def _load_clip(weight_file: Path = WEIGHT_FILE) -> CLIP:
-    # Filter "base_mode." in front of params key.
-    state_dict = {
-        ".".join(key.split('.')[1:]): parameters
-        for key, parameters in torch.load(weight_file)['model'].items()
-    }
-
-    model, _ = build_CLIP_from_openai_pretrained("ViT-B/16", IMAGE_SIZE, STRIDE_SIZE)
-    model.load_state_dict(state_dict)
-
-    return model
 
 def _import_annotations(data_folder: Path = DATA_FOLDER) -> pd.DataFrame:
     _, annotations = read_annotations_csv(
@@ -110,15 +97,28 @@ def _get_text_features(
         for i in range(0, n_samples, 2)
     }
 
+def _compute_features_from_one_frame(model: CLIP, frame: Path, bboxes: torch.Tensor) -> torch.Tensor:
+    # Get RoI from bboxes and frames
+    frame = read_image(frame)
+
+    # Preprocess RoI
+
+    # Compute features all at once
+    ...
+
 def _get_image_features(
     model: CLIP,
     frame_path_to_detection: Dict[Path, DetectionOutput],
 ) -> Dict[Path, torch.Tensor]:
-    ...
+    # Take one frame at time and output the images features
+    return {
+        frame: _compute_features_from_one_frame(model, frame, detection.bboxes)
+        for frame, detection in frame_path_to_detection.items()
+    }
 
 def main():
     # Import model
-    model = _load_clip()
+    model = load_clip()
 
     # Import annotations
     annotations = _import_annotations()
