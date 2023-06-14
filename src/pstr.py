@@ -1,7 +1,5 @@
 from pathlib import Path
-from typing import Dict, NamedTuple
-
-from irra.model.clip_model import build_CLIP_from_openai_pretrained, CLIP
+from typing import Dict
 
 import torch
 from torch.utils.data import DataLoader
@@ -12,15 +10,8 @@ from mmdet.models import build_detector
 from mmcv.parallel import MMDataParallel
 from mmdet.datasets import (build_dataloader, build_dataset, replace_ImageToTensor)
 
-
-STRIDE_SIZE = 16
-IMAGE_SIZE = (384, 128)
-
-CONFIG_FILE = str(Path.cwd() / "configs" / "pstr" / "pstr_r50_24e_cuhk.py")
-WEIGHT_FILE_CLIP = Path().home() / "models" / "clip_finetune.pth"
-WEIGHT_FILE_PSTR = Path().home() / "models" / "pstr_r50_cuhk.pth"
-
-
+CONFIG_FILE = str(Path.cwd() / "configs" / "pstr" / "tdbaseline.py")
+WEIGHT_FILE = Path().home() / "models" "pstr_resnet_cuhk" / "pstr_r50_cuhk.pth"
 
 class PSTR:
     """
@@ -85,7 +76,7 @@ class PSTR:
     def __init__(
         self,
         config_file: Path = CONFIG_FILE,
-        weight_file: Path = WEIGHT_FILE_PSTR,
+        weight_file: Path = WEIGHT_FILE,
     ) -> None:
         self.config = self._load_config(config_file)
         self.dataloader = self._load_dataloader()
@@ -99,52 +90,3 @@ class PSTR:
                 for data in self.dataloader
             }
         return results
-
-
-def _create_model_config_from_state_dict(state_dict: Dict) -> Dict:
-    vision_width = state_dict["visual.conv1.weight"].shape[0]
-    vision_layers = len([k for k in state_dict.keys() if k.startswith(
-        "visual.") and k.endswith(".attn.in_proj_weight")])
-    vision_patch_size = state_dict["visual.conv1.weight"].shape[-1]
-    grid_size = round(
-        (state_dict["visual.positional_embedding"].shape[0] - 1) ** 0.5)
-    image_resolution = vision_patch_size * grid_size
-
-    embed_dim = state_dict["text_projection"].shape[1]
-    context_length = state_dict["positional_embedding"].shape[0]
-    vocab_size = state_dict["token_embedding.weight"].shape[0]
-    transformer_width = state_dict["ln_final.weight"].shape[0]
-    transformer_heads = transformer_width // 64
-    transformer_layers = len(set(
-        k.split(".")[2]
-        for k in state_dict
-        if k.startswith(f"transformer.resblocks")
-    ))
-
-    return {
-        'embed_dim': embed_dim,
-        'image_resolution': image_resolution,
-        'vision_layers': vision_layers,
-        'vision_width': vision_width,
-        'vision_patch_size': vision_patch_size,
-        'context_length': context_length,
-        'vocab_size': vocab_size,
-        'transformer_width': transformer_width,
-        'transformer_heads': transformer_heads,
-        'transformer_layers': transformer_layers,
-        'image_resolution': IMAGE_SIZE,
-    }
-
-
-
-def load_clip(weight_file: Path = WEIGHT_FILE_CLIP) -> CLIP:
-    # Filter "base_mode." in front of params key.
-    state_dict = {
-        ".".join(key.split('.')[1:]): parameters
-        for key, parameters in torch.load(weight_file)['model'].items()
-    }
-
-    model, _ = build_CLIP_from_openai_pretrained("ViT-B/16", IMAGE_SIZE, STRIDE_SIZE)
-
-    return model.load_state_dict(state_dict)
-
