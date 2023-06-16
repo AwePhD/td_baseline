@@ -25,8 +25,13 @@ class CropIndex(NamedTuple):
     person_id: int
     frame_id: int
 
-
 class DoubleQuery(NamedTuple):
+    """
+    The PEDES dataset has 2 captions for each crops.
+    So each query in SYSU we can have two captions.
+    Thus, it doubles the number of query. For `f` a single query frame in SYSU,
+    we have 2 query in SYSU-PEDES `(f, caption_1), (f, caption_2)`
+    """
     captions: Tuple[str, str]
     CaptionsOutput
 
@@ -42,6 +47,6 @@ class GalleryElement(NamedTuple):
 Gallery = List[GalleryElement]
 
 class Sample(NamedTuple):
-    query: DoubleQuery
+    double_query: DoubleQuery
     gallery: Gallery
 
