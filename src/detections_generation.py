@@ -21,8 +21,6 @@ def export_to_hdf5(
             group.create_dataset('bboxes', data=detection_output.bboxes)
 
 def import_from_hdf5(h5_file: Path, frame_folder: Path) -> Dict[Path, DetectionOutput]:
-    frame_path_to_detections = {}
-
     with h5py.File(h5_file, 'r') as hd5_file:
         frame_path_to_detections = {
             frame_folder / frame_filename:
