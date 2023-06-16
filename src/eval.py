@@ -1,12 +1,11 @@
-from typing import List, NamedTuple, Tuple, Generator
-from pathlib import Path
+from typing import List, Tuple, Generator
 
 import pandas as pd
 import torch
 import tqdm
 
 from features_generation import _import_annotations
-from data_struct import CaptionsOutput, Sample
+from data_struct import Sample
 
 GALLERY_SIZE = 100
 

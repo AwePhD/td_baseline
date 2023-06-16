@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, NamedTuple
+from typing import Dict
 
 import h5py
 import torch

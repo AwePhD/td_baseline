@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, NamedTuple, List
+from typing import Dict, Tuple, List
 from pathlib import Path
 
 import h5py
