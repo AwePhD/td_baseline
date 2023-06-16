@@ -190,12 +190,23 @@ def _assert_detection_output_and_annotations_compatibility(
     )
     assert annotations_frame_ids == h5_frame_ids
 
+def _prompt_rm_to_user(h5_file: Path) -> bool:
+    print(f"{h5_file.name} already exists.")
+    user_input = input("Delete the file (y/N): ")
+    return user_input.lower() in ['y', 'yes']
+
 
 def _generate_captions_output(
     annotations: pd.DataFrame,
     model: CLIP,
     h5_file: Path = H5_CAPTIONS_OUTPUT_FILE,
 ) -> None:
+    if h5_file.exists():
+        if not _prompt_rm_to_user(h5_file):
+            return
+        else:
+            h5_file.unlink()
+
     crop_index_to_captions_outputs = _get_text_features(annotations, model)
     export_caption_features_to_hdf5(crop_index_to_captions_outputs, h5_file)
 
@@ -206,7 +217,10 @@ def _generate_frame_output(
     h5_file: Path = H5_FRAME_OUTPUT_FILE,
 ) -> None:
     if h5_file.exists():
-        h5_file.unlink()
+        if not _prompt_rm_to_user(h5_file):
+            return
+        else:
+            h5_file.unlink()
 
     frame_file_to_frame_output = _compute_and_frame_output(model, frame_file_to_detection)
     export_frame_output_to_hdf5(frame_file_to_frame_output, h5_file)
@@ -228,3 +242,36 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def _extract_int_from_str(s: str) -> int:
+    return int("".join(c for c in s if c.isdigit()))
+
+def import_frame_output_from_hdf5(h5_file: Path) -> Dict[int, FrameOutput]:
+    with h5py.File(h5_file, 'r') as hd5_file:
+        frame_id_to_frame_output = {
+            _extract_int_from_str(frame_filename):
+                FrameOutput(
+                    torch.tensor(frame_output[FrameOutput._fields[0]]),
+                    torch.tensor(frame_output[FrameOutput._fields[1]]),
+                    torch.tensor(frame_output[FrameOutput._fields[2]]),
+                )
+            for frame_filename, frame_output in hd5_file.items()
+        }
+
+    return frame_id_to_frame_output
+
+def import_captions_output_from_hdf5(h5_file: Path) -> Dict[CropIndex, FrameOutput]:
+    with h5py.File(h5_file, 'r') as hd5_file:
+        crop_index_to_captions_output = {
+            CropIndex(
+                _extract_int_from_str(crop_index_name.split("_")[0]),
+                _extract_int_from_str(crop_index_name.split("_")[1])
+            ):
+                CaptionsOutput(
+                    torch.tensor(captions_output[CaptionsOutput._fields[0]]),
+                    torch.tensor(captions_output[CaptionsOutput._fields[1]]),
+                )
+            for crop_index_name, captions_output in hd5_file.items()
+        }
+
+    return crop_index_to_captions_output
