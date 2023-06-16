@@ -5,14 +5,9 @@ import h5py
 import torch
 
 from pstr import PSTR
+from data_struct import DetectionOutput
 
 H5_FILENAME = "filename_to_detection.h5"
-
-class DetectionOutput(NamedTuple):
-    # (100,)
-    scores: torch.Tensor
-    # (100, 4)
-    bboxes: torch.Tensor
 
 def export_to_hdf5(
     frame_file_to_detection: Dict[Path, DetectionOutput],

@@ -6,27 +6,9 @@ import torch
 import tqdm
 
 from features_generation import _import_annotations
+from data_struct import CaptionsOutput, Sample
 
 GALLERY_SIZE = 100
-
-class Query(NamedTuple):
-    caption: str
-    text_features: torch.Tensor
-
-class FrameOutput(NamedTuple):
-    scores: torch.Tensor
-    bboxes: torch.Tensor
-    image_features: torch.Tensor
-
-class GalleryElement(NamedTuple):
-    frame: Path
-    output: FrameOutput
-
-Gallery = List[GalleryElement]
-
-class Sample(NamedTuple):
-    query: Query
-    gallery: Gallery
 
 def _load_one_sample(annotation_sample: pd.DataFrame) -> Sample:
     ...

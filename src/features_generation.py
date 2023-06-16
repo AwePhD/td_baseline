@@ -14,6 +14,7 @@ from tokenizer import SimpleTokenizer, tokenize
 from clip import load_clip, IMAGE_SIZE
 from cuhk_sysu_pedes import read_annotations_csv
 from detections_generation import import_from_hdf5, H5_FILENAME, DetectionOutput
+from data_struct import (CropIndex, FrameOutput, CaptionsOutput)
 
 DATA_FOLDER = Path.home() / "data"
 FRAME_FOLDER = DATA_FOLDER / "frames"
@@ -25,23 +26,6 @@ H5_FRAME_OUTPUT_FILENAME = "filename_to_frame_output.h5"
 H5_CAPTIONS_OUTPUT_FILENAME = "filename_to_captions_output.h5"
 H5_FRAME_OUTPUT_FILE = Path.cwd() / "outputs" / H5_FRAME_OUTPUT_FILENAME
 H5_CAPTIONS_OUTPUT_FILE = Path.cwd() / "outputs" / H5_CAPTIONS_OUTPUT_FILENAME
-
-class FrameOutput(NamedTuple):
-    # (100, )
-    scores: torch.Tensor
-    # (100, 4)
-    bboxes: torch.Tensor
-    # (100, 512)
-    features: torch.Tensor
-
-class CaptionsOutput(NamedTuple):
-    caption_1: torch.Tensor
-    caption_2: torch.Tensor
-
-class CropIndex(NamedTuple):
-    person_id: int
-    frame_id: int
-
 
 def _import_annotations(data_folder: Path = DATA_FOLDER) -> pd.DataFrame:
     _, annotations = read_annotations_csv(
