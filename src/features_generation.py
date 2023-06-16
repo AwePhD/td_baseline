@@ -32,7 +32,7 @@ class FrameOutput(NamedTuple):
     # (100, 4)
     bboxes: torch.Tensor
     # (100, 512)
-    image_features: torch.Tensor
+    features: torch.Tensor
 
 class CaptionsOutput(NamedTuple):
     caption_1: torch.Tensor
@@ -168,9 +168,6 @@ def export_caption_features_to_hdf5(
     crop_index_to_captions_output: Dict[CropIndex, CaptionsOutput],
     h5_file: Path
 ) -> None:
-    if h5_file.exists():
-        h5_file.unlink()
-
     with h5py.File(h5_file, 'w') as f:
         for crop_index, captions_output in crop_index_to_captions_output.items():
             group = f.create_group(f"p{crop_index.person_id}_s{crop_index.frame_id}")
@@ -224,6 +221,9 @@ def _generate_frame_output(
     model: CLIP,
     h5_file: Path = H5_FRAME_OUTPUT_FILE,
 ) -> None:
+    if h5_file.exists():
+        h5_file.unlink()
+
     frame_file_to_frame_output = _compute_and_frame_output(model, frame_file_to_detection)
     export_frame_output_to_hdf5(frame_file_to_frame_output, h5_file)
 
