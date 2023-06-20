@@ -1,4 +1,4 @@
-from typing import List, Tuple, Generator
+from typing import List, Tuple, Generator, Dict
 
 import numpy as np
 import pandas as pd
@@ -15,13 +15,13 @@ from features_generation import (
 from data_struct import Sample, CropIndex, Query, FrameOutput, GalleryElement
 
 GALLERY_SIZE = 100
+SCORE_THRESHOLD = .25
 
 def _load_samples(
     annotations: pd.DataFrame,
-    frame_id_to_frame_output,
-    crop_index_to_captions_output
+    frame_id_to_frame_output: Dict[int, FrameOutput],
+    crop_index_to_captions_output: Dict[CropIndex, torch.Tensor]
 ) -> Generator[Sample, None, None]:
-    # BUG: DO NOT TAKE INDEX OF NO DISTRACTOR CORRECTLY
     for _, annotation_sample in annotations.groupby("person_id"):
         gt_bboxes = (
             annotation_sample[["bbox_x", "bbox_y","bbox_w", "bbox_h" ]]
@@ -49,7 +49,6 @@ def _load_samples(
             GalleryElement(
                 frame_index.frame_id,
                 frame_id_to_frame_output[frame_index.frame_id],
-                crop_index_to_captions_output.get(frame_index, None),
                 torch.tensor(gt_bboxes.loc[frame_index].values, dtype=torch.int32)
                 if frame_index in gt_bboxes.index
                 else None
@@ -168,9 +167,8 @@ def _compute_labels_scores_for_one_gallery_frame(
 
 def _evaluate_one_sample(
     sample: Sample,
-    annotation_sample: pd.DataFrame,
-    threshold: float,
     compute_method,
+    threshold: float = SCORE_THRESHOLD,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
      0. Init labels and scores variables for the samples. They
@@ -229,8 +227,8 @@ def main():
     labels_list: List[torch.Tensor] = []
     scores_list: List[torch.Tensor] = []
 
-    for sample, (_, annotation_sample) in zip(samples, annotations.groupby("person_id")):
-        labels_sample, scores_sample = _evaluate_one_sample(sample, annotation_sample)
+    for sample  in samples:
+        labels_sample, scores_sample = _evaluate_one_sample(sample, compute_method)
 
         labels_list.append(labels_sample)
         scores_list.append(scores_sample)
