@@ -34,7 +34,6 @@ class Query(NamedTuple):
 class GalleryElement(NamedTuple):
     frame_id: int
     frame_output: FrameOutput
-    captions_output: Optional[CaptionsOutput]
     # (100, 4)
     gt_bboxes: List[Optional[torch.Tensor]]
 

@@ -96,27 +96,20 @@ def _get_argmax_iou(
     return nmax
 
 def _get_features_of_best_output_bbox(
-    query_frame_output: FrameOutput,
-    query_annotation: pd.DataFrame,
+    query: Query
 ) -> torch.Tensor:
-    gt_bbox = (
-        query_annotation.bbox_x,
-        query_annotation.bbox_y,
-        query_annotation.bbox_x + query_annotation.bbox_w,
-        query_annotation.bbox_y + query_annotation.bbox_h,
-    )
-    i_best_match = _get_argmax_iou(query_frame_output.bboxes, gt_bbox)
+    gt_bbox = query.gt_bbox
+    i_best_match = _get_argmax_iou(query.frame_output.bboxes, gt_bbox)
 
-    return normalize(query_frame_output.features[i_best_match])
+    return normalize(query.frame_output.features[i_best_match])
 
 
 def _compute_labels_scores_for_one_gallery_frame(
-    frame: FrameOutput,
-    compute_method,
-    frame_index,
-    annotation_sample,
+    frame: GalleryElement,
+    gt_bbox,
     query_text_features,
     query_image_features,
+    compute_method,
     threshold,
     ):
     """
@@ -140,7 +133,7 @@ def _compute_labels_scores_for_one_gallery_frame(
     n_result = kept_index.sum()
     if n_result == 0:
         # No correct detections in this frame
-        return (None, None)
+        return None
     else:
         labels = torch.zeros(n_result, dtype=bool)
 
@@ -155,11 +148,11 @@ def _compute_labels_scores_for_one_gallery_frame(
     )
 
     # No query person, fill labels and scores
-    if annotation_sample.iloc[frame_index].bbox_w == 0:
+    if frame.gt_bboxes is None:
         return labels, similarities
 
     i_bbox = _check_bboxes_match(
-        frame.bboxes[kept_index], annotation_sample.iloc[frame_index])
+        frame.bboxes[kept_index], frame.gt_bboxes)
     if not(i_bbox is None):
         labels[i_bbox] = True
 
@@ -167,7 +160,7 @@ def _compute_labels_scores_for_one_gallery_frame(
 
 def _evaluate_one_sample(
     sample: Sample,
-    compute_method,
+    compute_method: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     threshold: float = SCORE_THRESHOLD,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
@@ -189,30 +182,26 @@ def _evaluate_one_sample(
 
 
     query_index = sample.double_query.index
-    query_image_features = _get_features_of_best_output_bbox(
-        sample.double_query.frame_output,
-        annotation_sample.query("type == 'query'"))
+    query_image_features = _get_features_of_best_output_bbox(sample)
 
-    for caption_output in zip(sample.double_query.captions_output):
-        query_text_features = _get_text_features()
+    for caption_output in sample.double_query.captions_output:
+        query_text_features = normalize(caption_output)
 
         for gallery_element in sample.gallery:
             frame = gallery_element.frame_output
-            frame_index = CropIndex(query_index, gallery_element.frame_id)
+            frame_index = CropIndex(sample.person_id, gallery_element.frame_id)
 
+            # NOTE: Use switch case to handle it
             labels, scores = _compute_labels_scores_for_one_gallery_frame(
-                    frame,
-                    frame_index,
+                    sample,
                     compute_method,
-                    query_text_features,
-                    query_image_features,
-                    threshold,
+                    threshold
             )
             if labels is None:
                 continue
 
             labels_sample_list.append(labels)
-            scores_sample_list.append(similarities)
+            scores_sample_list.append(scores)
 
 
 def main():
