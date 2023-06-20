@@ -22,13 +22,10 @@ def _load_samples(
     crop_index_to_captions_output
 ) -> Generator[Sample, None, None]:
     # BUG: DO NOT TAKE INDEX OF NO DISTRACTOR CORRECTLY
-    # BUG: DROP ROWS WITH 0 in BBOX_X ou BBOX_Y
     for _, annotation_sample in annotations.groupby("person_id"):
         gt_bboxes = (
             annotation_sample[["bbox_x", "bbox_y","bbox_w", "bbox_h" ]]
-            # This convert dtype to object even if pd.NA is compatible with integer value
-            .replace(0, pd.NA)
-            .dropna()
+            [annotation_sample.bbox_x != 0 ]
             # int32 because tensor cannot convert from uint16 (dtype of bbox coords).
             .astype('Int32')
             .copy()
