@@ -118,8 +118,8 @@ def _compute_features_from_one_frame(
         frame.crop((
             int(bbox[0]),
             int(bbox[1]),
-            int(bbox[2]-bbox[0]),
-            int(bbox[3]-bbox[1])
+            int(bbox[2]),
+            int(bbox[3])
         ))
         for bbox in bboxes
     ]
