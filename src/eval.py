@@ -13,6 +13,7 @@ from features_generation import (
      H5_FRAME_OUTPUT_FILE,
 )
 from data_struct import Sample, CropIndex, Query, FrameOutput, GalleryElement
+from compute_similarities import average, ComputeSimilarities
 
 GALLERY_SIZE = 100
 SCORE_THRESHOLD = .25
@@ -109,7 +110,7 @@ def _compute_labels_scores_for_one_gallery_frame(
     gt_bbox,
     query_text_features,
     query_image_features,
-    compute_method,
+    compute_similarities: ComputeSimilarities,
     threshold,
     ):
     """
@@ -140,11 +141,10 @@ def _compute_labels_scores_for_one_gallery_frame(
     frame_features = normalize(
         frame.frame_output.features[kept_index])
 
-    similarities = _build_similarity(
-        compute_method,
-        frame_features,
+    similarities = compute_similarities(
         query_image_features,
         query_text_features,
+        frame_features,
     )
 
     # No query person, fill labels and scores
@@ -160,7 +160,7 @@ def _compute_labels_scores_for_one_gallery_frame(
 
 def _evaluate_one_sample(
     sample: Sample,
-    compute_method: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    compute_similarities: ComputeSimilarities,
     threshold: float = SCORE_THRESHOLD,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
@@ -194,7 +194,7 @@ def _evaluate_one_sample(
             # NOTE: Use switch case to handle it
             labels, scores = _compute_labels_scores_for_one_gallery_frame(
                     sample,
-                    compute_method,
+                    compute_similarities,
                     threshold
             )
             if labels is None:
@@ -217,7 +217,7 @@ def main():
     scores_list: List[torch.Tensor] = []
 
     for sample  in samples:
-        labels_sample, scores_sample = _evaluate_one_sample(sample, compute_method)
+        labels_sample, scores_sample = _evaluate_one_sample(sample, average)
 
         labels_list.append(labels_sample)
         scores_list.append(scores_sample)
