@@ -1,4 +1,4 @@
-from typing import List, Tuple, Generator, Dict
+from typing import List, Tuple, Generator, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,7 @@ from features_generation import (
      H5_CAPTIONS_OUTPUT_FILE,
      H5_FRAME_OUTPUT_FILE,
 )
-from data_struct import Sample, CropIndex, Query, FrameOutput, GalleryElement
+from data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame
 from compute_similarities import average, ComputeSimilarities
 
 GALLERY_SIZE = 100
@@ -46,8 +46,8 @@ def _load_samples(
             CropIndex(person_id, frame_id)
             for person_id, frame_id in annotation_sample.query("type == 'gallery'").index.tolist()
         ]
-        gallery: List[GalleryElement] = [
-            GalleryElement(
+        gallery: List[GalleryFrame] = [
+            GalleryFrame(
                 frame_index.frame_id,
                 frame_id_to_frame_output[frame_index.frame_id],
                 torch.tensor(gt_bboxes.loc[frame_index].values, dtype=torch.int32)
@@ -60,12 +60,12 @@ def _load_samples(
 
         yield Sample(query_index.person_id, query, gallery)
 
-def _get_argmax_iou(
+def _compute_ious(
     output_bboxes: torch.Tensor,
-    gt_bbox: torch.Tensor
-) -> int:
+    gt_bbox: torch.Tensor,
+) -> torch.Tensor:
     """
-    Compute IoUs between bboxes from model and theirs GT.
+    Compute IoUs between bboxes from model and its GT.
 
     output_bboxes (torch.Tensor): (N_BBOXES, 4) tensor of bboxes from model
     gt_bbox (torch.Tensor): (4,) Ground Truth bbox from annotation
@@ -92,21 +92,34 @@ def _get_argmax_iou(
     )
 
     # 4.calculate the overlaps and find the max overlap ,the max overlaps index for pred_box
-    iou = inters / uni
-    nmax = np.argmax(iou)
-    return nmax
+    return inters / uni
+
 
 def _get_features_of_best_output_bbox(
     query: Query
 ) -> torch.Tensor:
     gt_bbox = query.gt_bbox
-    i_best_match = _get_argmax_iou(query.frame_output.bboxes, gt_bbox)
+    i_best_match = _compute_ious(query.frame_output.bboxes, gt_bbox).argmax()
 
     return normalize(query.frame_output.features[i_best_match])
 
+def _check_bboxes_match(
+    output_bboxes: torch.Tensor,
+    gt_bbox: torch.Tensor
+) -> Optional[int]:
+    width, height = gt_bbox[2] - gt_bbox[0], gt_bbox[3] - gt_bbox[1]
+    iou_threshold =  min(0.5, (width * height * 1.0) / ((width + 10) * (height + 10)))
+    ious = _compute_ious(output_bboxes, gt_bbox)
+
+    for i, iou in enumerate(ious):
+        if iou > iou_threshold:
+            return i
+    return None
+
+
 
 def _compute_labels_scores_for_one_gallery_frame(
-    frame: GalleryElement,
+    frame: GalleryFrame,
     gt_bbox,
     query_text_features,
     query_image_features,
@@ -151,8 +164,9 @@ def _compute_labels_scores_for_one_gallery_frame(
     if frame.gt_bboxes is None:
         return labels, similarities
 
+    indices_by_similarities = frame.frame_output.features[kept_index].argsort(descending=True)
     i_bbox = _check_bboxes_match(
-        frame.bboxes[kept_index], frame.gt_bboxes)
+        frame.bboxes[kept_index][indices_by_similarities], frame.gt_bbox)
     if not(i_bbox is None):
         labels[i_bbox] = True
 
