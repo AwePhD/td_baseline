@@ -35,7 +35,7 @@ class GalleryFrame(NamedTuple):
     frame_id: int
     # (100, 4)
     frame_output: FrameOutput
-    gt_bboxes: Optional[torch.Tensor]
+    gt_bbox: Optional[torch.Tensor]
 
 
 Gallery = List[GalleryFrame]
