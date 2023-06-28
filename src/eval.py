@@ -245,6 +245,9 @@ def _compute_average_precision(
     ranks = labels_sample[indices_by_scores]
 
     count_gt = ranks.sum()
+    if count_gt == 0:
+        return count_gt
+
     tps = ranks.cumsum(0)
 
     # TODO: Make a drawing / schemes about this
@@ -257,7 +260,7 @@ def _evaluate_one_sample(
     sample: Sample,
     compute_similarities: ComputeSimilarities,
     threshold: float = SCORE_THRESHOLD,
-) -> float:
+) -> torch.float:
     """
      0. Init labels and scores variables for the samples. They
      respectively denote the positions of the GTs among the detections results
@@ -303,7 +306,10 @@ def _evaluate_one_sample(
         return _compute_average_precision(labels, scores)
 
 
-def main():
+def main(
+    compute_similarities: ComputeSimilarities,
+    threshold: float,
+):
     # Import annotations and model outputs
     annotations = _import_annotations()
     crop_index_to_captions_output = import_captions_output_from_hdf5(H5_CAPTIONS_OUTPUT_FILE)
@@ -316,9 +322,11 @@ def main():
     average_precisions = torch.empty(n_samples, dtype=torch.float)
 
     for i, sample  in tqdm(enumerate(samples)):
-        average_precisions[i] = _evaluate_one_sample(sample, average)
+        average_precisions[i] = _evaluate_one_sample(sample, compute_similarities, threshold)
 
-    mean_average_precision = average_precisions.mean()
+    mean_average_precision = np.mean([
+        ap for ap in average_precisions if not ap.isnan()
+    ])
     print(f"mAP: {mean_average_precision}")
 
 
