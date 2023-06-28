@@ -309,7 +309,7 @@ def _evaluate_one_sample(
 def main(
     compute_similarities: ComputeSimilarities,
     threshold: float,
-):
+) -> float:
     # Import annotations and model outputs
     annotations = _import_annotations()
     crop_index_to_captions_output = import_captions_output_from_hdf5(H5_CAPTIONS_OUTPUT_FILE)
@@ -324,10 +324,9 @@ def main(
     for i, sample  in tqdm(enumerate(samples)):
         average_precisions[i] = _evaluate_one_sample(sample, compute_similarities, threshold)
 
-    mean_average_precision = np.mean([
+    return np.mean([
         ap for ap in average_precisions if not ap.isnan()
     ])
-    print(f"mAP: {mean_average_precision}")
 
 
 if __name__ == "__main__":
