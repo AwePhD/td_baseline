@@ -1,6 +1,7 @@
 from pathlib import Path
-from typing import List, Tuple, Generator, Dict, Optional
+from typing import List, Generator, Dict, Optional
 
+from tqdm import tqdm
 import h5py
 import numpy as np
 import pandas as pd
@@ -111,10 +112,10 @@ def _compute_ious(
 def _get_features_of_best_output_bbox(
     query: Query
 ) -> torch.Tensor:
-    gt_bbox = query.gt_bbox
-    i_best_match = _compute_ious(query.frame_output.bboxes, gt_bbox).argmax()
+    i_best_match = _compute_ious(query.frame_output.bboxes, query.gt_bbox).argmax()
 
-    return normalize(query.frame_output.features[i_best_match])
+    return normalize(
+        query.frame_output.features[i_best_match].unsqueeze(0))[0]
 
 def _check_bboxes_match(
     output_bboxes: torch.Tensor,
@@ -133,27 +134,26 @@ def _check_bboxes_match(
 
 def _compute_labels_scores_for_one_gallery_frame(
     frame: GalleryFrame,
-    gt_bbox,
     query_text_features,
     query_image_features,
     compute_similarities: ComputeSimilarities,
     threshold,
-    ):
+):
     """
-     1 Keep detections above a certain thresholds
-     pass to the next element if there is no detections remaining.
-     2 Normalize Image feautres
-     3 Build Similarity matrice
-       NOTE: This is here that we can introduce different method
-     4 NOT(Has query person)
-       2.3.4.False -> All labels are False, append scores and pass to the
-       next sample.
-     5 Determine by IoU if a bbox can be considered as TP
-        5.1 Compute IoU threshold based on height and width of GT bbox
-        5.2 Compute IoU between GT and outputs,
-        consider the best IoU score superior to the threshold as TP. Else FP.
-        5.3 Append labels with a True to the TP, if it exists
-     6 Append scores with similarity
+    1 Keep detections above a certain thresholds
+    pass to the next element if there is no detections remaining.
+    2 Normalize Image feautres
+    3 Build Similarity matrice
+      NOTE: This is here that we can introduce different method
+    4 NOT(Has query person)
+      2.3.4.False -> All labels are False, append scores and pass to the
+      next sample.
+    5 Determine by IoU if a bbox can be considered as TP
+       5.1 Compute IoU threshold based on height and width of GT bbox
+       5.2 Compute IoU between GT and outputs,
+       consider the best IoU score superior to the threshold as TP. Else FP.
+       5.3 Append labels with a True to the TP, if it exists
+    6 Append scores with similarity
     """
     kept_index = frame.frame_output.scores >= threshold
 
@@ -161,12 +161,15 @@ def _compute_labels_scores_for_one_gallery_frame(
     if n_result == 0:
         # No correct detections in this frame
         return None
-    else:
-        labels = torch.zeros(n_result, dtype=bool)
 
+    # [n_result]
+    labels = torch.zeros(n_result, dtype=bool)
+
+    # [n_result, 512]
     frame_features = normalize(
         frame.frame_output.features[kept_index])
 
+    # [n_result]
     similarities = compute_similarities(
         query_image_features,
         query_text_features,
@@ -174,22 +177,44 @@ def _compute_labels_scores_for_one_gallery_frame(
     )
 
     # No query person, fill labels and scores
-    if frame.gt_bboxes is None:
+    if frame.gt_bbox is None:
         return labels, similarities
 
-    indices_by_similarities = frame.frame_output.features[kept_index].argsort(descending=True)
+    # [n_result]
+    indices_by_similarities = similarities.argsort(descending=True)
     i_bbox = _check_bboxes_match(
-        frame.bboxes[kept_index][indices_by_similarities], frame.gt_bbox)
-    if not(i_bbox is None):
+        frame.frame_output.bboxes[kept_index][indices_by_similarities], frame.gt_bbox)
+    if not( i_bbox is None ):
         labels[i_bbox] = True
 
     return labels, similarities
+
+def _compute_average_precision(
+    labels_sample: torch.Tensor,
+    scores_sample: torch.Tensor
+) -> torch.float:
+    """
+    IMPORTANT: In SYSU evaluation, we evaluate per sample.
+    Namely, they compute the 'Average' precision over elements in the gallery.
+    We follow the same logic here.
+    """
+    indices_by_scores = scores_sample.cuda().argsort(descending=True).cpu()
+    ranks = labels_sample[indices_by_scores]
+
+    count_gt = ranks.sum()
+    tps = ranks.cumsum(0)
+
+    # TODO: Make a drawing / schemes about this
+    precisions = (tps / torch.arange(1, len(tps) + 1)) * ranks
+
+    return  precisions.sum() / count_gt
+
 
 def _evaluate_one_sample(
     sample: Sample,
     compute_similarities: ComputeSimilarities,
     threshold: float = SCORE_THRESHOLD,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> float:
     """
      0. Init labels and scores variables for the samples. They
      respectively denote the positions of the GTs among the detections results
@@ -204,30 +229,35 @@ def _evaluate_one_sample(
          2.3 For each element in gallery, get scores and labels
     3. Turn list to tensor and return
     """
-    labels_sample_list: List[torch.Tensor] = []
-    scores_sample_list: List[torch.Tensor] = []
+    labels_temp: List[torch.Tensor] = []
+    scores_temp: List[torch.Tensor] = []
 
-    query_index = sample.query.index
-    query_image_features = _get_features_of_best_output_bbox(sample)
+    # [512]
+    query_image_features = _get_features_of_best_output_bbox(sample.query)
 
     for caption_output in sample.query.captions_output:
-        query_text_features = normalize(caption_output)
+        # [512]
+        query_text_features = normalize(caption_output.unsqueeze(0))[0]
 
-        for gallery_element in sample.gallery:
-            frame = gallery_element.frame_output
-            frame_index = CropIndex(sample.person_id, gallery_element.frame_id)
-
-            # NOTE: Use switch case to handle it
-            labels, scores = _compute_labels_scores_for_one_gallery_frame(
-                    sample,
+        for gallery_frame in sample.gallery:
+            result = _compute_labels_scores_for_one_gallery_frame(
+                    gallery_frame,
+                    query_text_features,
+                    query_image_features,
                     compute_similarities,
                     threshold
             )
-            if labels is None:
+            #
+            if result is None:
                 continue
 
-            labels_sample_list.append(labels)
-            scores_sample_list.append(scores)
+            labels, scores = result
+            labels_temp.append(labels)
+            scores_temp.append(scores)
+
+        labels = torch.cat(labels_temp)
+        scores = torch.cat(scores_temp)
+        return _compute_average_precision(labels, scores)
 
 
 def main():
@@ -238,19 +268,15 @@ def main():
     samples: Generator[Sample] = _load_samples(
         annotations, H5_FRAME_OUTPUT_FILE, crop_index_to_captions_output)
 
-    labels_list: List[torch.Tensor] = []
-    scores_list: List[torch.Tensor] = []
+    n_samples = len(annotations.groupby("person_id"))
+    average_precisions = torch.empty(n_samples, dtype=torch.float)
 
-    for sample  in samples:
-        labels_sample, scores_sample = _evaluate_one_sample(sample, average)
+    for i, sample  in tqdm(enumerate(samples)):
+        average_precisions[i] = _evaluate_one_sample(sample, average)
 
-        labels_list.append(labels_sample)
-        scores_list.append(scores_sample)
+    mean_average_precision = average_precisions.mean()
+    print(f"mAP: {mean_average_precision}")
 
-    labels = torch.stack(labels_list)
-    scores = torch.stack(scores_list)
-
-    # Evaluate the mAP on the whole sets of search performance
 
 if __name__ == "__main__":
     main()
