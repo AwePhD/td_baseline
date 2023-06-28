@@ -1,4 +1,4 @@
-from typing import NamedTuple, Tuple, List, Optional
+from typing import NamedTuple, List, Optional
 
 import torch
 
@@ -33,9 +33,9 @@ class Query(NamedTuple):
 
 class GalleryFrame(NamedTuple):
     frame_id: int
-    frame_output: FrameOutput
     # (100, 4)
-    gt_bboxes: List[Optional[torch.Tensor]]
+    frame_output: FrameOutput
+    gt_bboxes: Optional[torch.Tensor]
 
 
 Gallery = List[GalleryFrame]
