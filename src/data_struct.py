@@ -31,14 +31,14 @@ class Query(NamedTuple):
     # (4,)
     gt_bbox: torch.Tensor
 
-class GalleryElement(NamedTuple):
+class GalleryFrame(NamedTuple):
     frame_id: int
     frame_output: FrameOutput
     # (100, 4)
     gt_bboxes: List[Optional[torch.Tensor]]
 
 
-Gallery = List[GalleryElement]
+Gallery = List[GalleryFrame]
 
 class Sample(NamedTuple):
     person_id: int
