@@ -1,5 +1,7 @@
+from pathlib import Path
 from typing import List, Tuple, Generator, Dict, Optional
 
+import h5py
 import numpy as np
 import pandas as pd
 import torch
@@ -8,21 +10,30 @@ from torch.nn.functional import normalize
 from features_generation import (
     _import_annotations,
      import_captions_output_from_hdf5,
-     import_frame_output_from_hdf5,
      H5_CAPTIONS_OUTPUT_FILE,
      H5_FRAME_OUTPUT_FILE,
 )
-from data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame
+from data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, CaptionsOutput
 from compute_similarities import average, ComputeSimilarities
 
 GALLERY_SIZE = 100
 SCORE_THRESHOLD = .25
 
+def _get_frame_output_from_h5(h5_file: h5py.File, frame_id: int) -> FrameOutput:
+    frame_id_key = f"s{frame_id}.jpg"
+    return FrameOutput(
+        torch.tensor(h5_file[frame_id_key][FrameOutput._fields[0]]),
+        torch.tensor(h5_file[frame_id_key][FrameOutput._fields[1]]),
+        torch.tensor(h5_file[frame_id_key][FrameOutput._fields[2]]),
+    )
+
+
 def _load_samples(
     annotations: pd.DataFrame,
-    frame_id_to_frame_output: Dict[int, FrameOutput],
-    crop_index_to_captions_output: Dict[CropIndex, torch.Tensor]
+    frame_output_h5_file: Path,
+    crop_index_to_captions_output: Dict[CropIndex, CaptionsOutput]
 ) -> Generator[Sample, None, None]:
+    frame_output_h5 = h5py.File(frame_output_h5_file, 'r')
     for _, annotation_sample in annotations.groupby("person_id"):
         gt_bboxes = (
             annotation_sample[["bbox_x", "bbox_y","bbox_w", "bbox_h" ]]
@@ -37,9 +48,10 @@ def _load_samples(
         query_index = CropIndex(*annotation_sample.query("type == 'query'").index.tolist()[0])
         query = Query(
             query_index.frame_id,
-            frame_id_to_frame_output[query_index.frame_id],
+            _get_frame_output_from_h5(frame_output_h5, query_index.frame_id),
             crop_index_to_captions_output[query_index],
-            torch.tensor(gt_bboxes.loc[query_index].values, dtype=torch.int32)
+            torch.tensor(gt_bboxes.loc[query_index].values, dtype=torch.int32),
+
         )
 
         gallery_indexes =  [
@@ -49,7 +61,7 @@ def _load_samples(
         gallery: List[GalleryFrame] = [
             GalleryFrame(
                 frame_index.frame_id,
-                frame_id_to_frame_output[frame_index.frame_id],
+                _get_frame_output_from_h5(frame_output_h5, frame_index.frame_id),
                 torch.tensor(gt_bboxes.loc[frame_index].values, dtype=torch.int32)
                 if frame_index in gt_bboxes.index
                 else None
@@ -59,6 +71,7 @@ def _load_samples(
         ]
 
         yield Sample(query_index.person_id, query, gallery)
+    frame_output_h5.close()
 
 def _compute_ious(
     output_bboxes: torch.Tensor,
@@ -194,11 +207,10 @@ def _evaluate_one_sample(
     labels_sample_list: List[torch.Tensor] = []
     scores_sample_list: List[torch.Tensor] = []
 
-
-    query_index = sample.double_query.index
+    query_index = sample.query.index
     query_image_features = _get_features_of_best_output_bbox(sample)
 
-    for caption_output in sample.double_query.captions_output:
+    for caption_output in sample.query.captions_output:
         query_text_features = normalize(caption_output)
 
         for gallery_element in sample.gallery:
@@ -222,10 +234,9 @@ def main():
     # Import annotations and model outputs
     annotations = _import_annotations()
     crop_index_to_captions_output = import_captions_output_from_hdf5(H5_CAPTIONS_OUTPUT_FILE)
-    frame_id_to_frame_output = import_frame_output_from_hdf5(H5_FRAME_OUTPUT_FILE)
 
     samples: Generator[Sample] = _load_samples(
-        annotations, frame_id_to_frame_output, crop_index_to_captions_output)
+        annotations, H5_FRAME_OUTPUT_FILE, crop_index_to_captions_output)
 
     labels_list: List[torch.Tensor] = []
     scores_list: List[torch.Tensor] = []
