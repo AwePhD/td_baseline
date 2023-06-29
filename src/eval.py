@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Generator, Dict, Optional
+from typing import List, Generator, Dict, Optional, Tuple, Iterable
 
 from tqdm import tqdm
 import h5py
@@ -305,28 +305,33 @@ def _evaluate_one_sample(
         scores = torch.cat(scores_temp)
         return _compute_average_precision(labels, scores)
 
+def import_data(
+    h5_captions_output_file: Path,
+    h5_frame_output_file: Path,
+) -> Generator[Sample, None, None]:
+    annotations = _import_annotations()
+    crop_index_to_captions_output = import_captions_output_from_hdf5(h5_captions_output_file)
+    frame_id_to_frame_output = import_frame_output_from_hdf5(h5_frame_output_file)
 
-def main(
+    return _load_samples(
+        annotations, frame_id_to_frame_output, crop_index_to_captions_output)
+
+def compute_mean_average_precision(
+    samples: Iterable[Sample],
     compute_similarities: ComputeSimilarities,
     threshold: float,
 ) -> float:
-    # Import annotations and model outputs
-    annotations = _import_annotations()
-    crop_index_to_captions_output = import_captions_output_from_hdf5(H5_CAPTIONS_OUTPUT_FILE)
-    frame_id_to_frame_output = import_frame_output_from_hdf5(H5_FRAME_OUTPUT_FILE)
+    average_precisions = []
 
-    samples: Generator[Sample] = _load_samples(
-        annotations, frame_id_to_frame_output, crop_index_to_captions_output)
+    for sample  in tqdm(samples):
+        average_precisions.append(_evaluate_one_sample(sample, compute_similarities, threshold))
 
-    n_samples = len(annotations.groupby("person_id"))
-    average_precisions = torch.empty(n_samples, dtype=torch.float)
+    return np.mean(average_precisions)
 
-    for i, sample  in tqdm(enumerate(samples)):
-        average_precisions[i] = _evaluate_one_sample(sample, compute_similarities, threshold)
-
-    return np.mean([
-        ap for ap in average_precisions if not ap.isnan()
-    ])
+def main():
+    samples = import_data(H5_CAPTIONS_OUTPUT_FILE, H5_FRAME_OUTPUT_FILE)
+    mean_average_precision = compute_mean_average_precision(samples, average, SCORE_THRESHOLD)
+    print(f"mAP: {mean_average_precision:.2%}")
 
 
 if __name__ == "__main__":
