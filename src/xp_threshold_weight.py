@@ -72,7 +72,7 @@ def main():
 
             mean_average_precisions[i_weight, j_threshold] = mAP
 
-            logging.info("{threshold:2.2%} | {weight:3.2%} | {mAP:2.2%}")
+            logging.info(f"{threshold:2.2%} | {weight:3.2%} | {mAP:2.2%}")
 
     # Export result
     logging.debug(cool_formatter(' Start exporting '))
