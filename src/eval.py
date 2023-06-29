@@ -250,10 +250,10 @@ def _compute_average_precision(
 
     tps = ranks.cumsum(0)
 
-    # TODO: Make a drawing / schemes about this
-    precisions = (tps / torch.arange(1, len(tps) + 1)) * ranks
+    precisions = (tps / torch.arange(1, len(tps) + 1))
+    precisions_at_delta_recall = precisions[ranks]
 
-    return  precisions.sum() / count_gt
+    return  precisions_at_delta_recall.sum() / count_gt
 
 
 def _evaluate_one_sample(
