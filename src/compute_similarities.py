@@ -19,8 +19,8 @@ def text_similarity_only(
     return torch.einsum("d,nd->n", query_text_features, frame_features)
 
 def average(
-    query_text_features: Tensor,
     query_image_features: Tensor,
+    query_text_features: Tensor,
     frame_features: Tensor,
     weight: float = AVERAGE_WEIGHT
 ) -> Tensor:
