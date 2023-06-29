@@ -13,8 +13,6 @@ import logging
 from typing import Tuple
 from pathlib import Path
 from contextlib import contextmanager
-import sys
-import os
 
 import numpy as np
 
