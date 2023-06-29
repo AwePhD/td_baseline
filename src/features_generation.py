@@ -36,7 +36,20 @@ def _import_annotations(data_folder: Path = DATA_FOLDER) -> pd.DataFrame:
     return annotations
 
 
-def _collate_tokens_dataloader(batch: List[Tuple[CropIndex, Tuple[torch.Tensor, torch.Tensor]]]):
+def _collate_tokens_dataloader(
+    batch: List[Tuple[CropIndex, Tuple[torch.Tensor, torch.Tensor]]]
+) -> Tuple[List[CropIndex], torch.Tensor]:
+    """Format tuples (crop index, tensor of size 2, token_length) to
+    two lists. One list for crop indexes and another for individual tokens.
+    Crop indexes are doubled because for 1 crop index there are two tokens.
+
+    Args:
+        batch (List[Tuple[CropIndex, Tuple[torch.Tensor, torch.Tensor]]]):
+            list of (crop_index, tokens [2, token_length])
+
+    Returns:
+        Tuple[List[CropIndex], torch.Tensor]: crop_indexes and tokens
+    """
     crop_indexes = [
         sample[0]
         for sample in batch
@@ -91,9 +104,8 @@ def _get_text_features(
         with torch.no_grad():
             tokens_features = model.encode_text(batch_tokens.cuda()).cpu()
         # Prends le token de <END_OF_SEQUENCE> => CLASS TOKEN
-        features_text.extend(tokens_features[
-             torch.arange(tokens_features.shape[0]), batch_tokens.argmax(dim=-1)
-        ].float())
+        features_text.extend(
+            tokens_features[:, batch_tokens.argmax(dim=-1)].float())
     assert len(crop_indexes) == len(features_text)
 
     n_samples = len(crop_indexes)
@@ -196,7 +208,7 @@ def _prompt_rm_to_user(h5_file: Path) -> bool:
     return user_input.lower() in ['y', 'yes']
 
 
-def _generate_captions_output(
+def _generate_captions_output_to_hdf5(
     annotations: pd.DataFrame,
     model: CLIP,
     h5_file: Path = H5_CAPTIONS_OUTPUT_FILE,
@@ -211,7 +223,7 @@ def _generate_captions_output(
     export_caption_features_to_hdf5(crop_index_to_captions_outputs, h5_file)
 
 
-def _generate_frame_output(
+def _generate_frame_output_to_hdf5(
     frame_file_to_detection: Dict[Path, DetectionOutput],
     model: CLIP,
     h5_file: Path = H5_FRAME_OUTPUT_FILE,
@@ -231,14 +243,14 @@ def main():
 
     annotations = _import_annotations()
 
-    _generate_captions_output(annotations, model)
+    _generate_captions_output_to_hdf5(annotations, model)
 
     frame_file_to_detection= import_from_hdf5(H5_FILE, FRAME_FOLDER)
     # Assure that annotations (used for evaluation) and the output
-    # of the model (used for detection compute) have the same FRAMES
+    # of the model (used for detection compute) have the same frame files
     _assert_detection_output_and_annotations_compatibility(annotations, frame_file_to_detection)
 
-    _generate_frame_output(frame_file_to_detection, model)
+    _generate_frame_output_to_hdf5(frame_file_to_detection, model)
 
 if __name__ == "__main__":
     main()
