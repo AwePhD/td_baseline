@@ -41,11 +41,7 @@ class PSTR:
     def _load_model(self, weight_file: Path) -> MMDataParallel:
         # Get model and weights with boilerplate
         model = build_detector(self.config.model, test_cfg=self.config.get('test_cfg')).eval()
-        load_checkpoint(
-            model,
-            str(Path.home() / "models" / "pstr_resnet_cuhk" / "pstr_r50_cuhk.pth"),
-            map_location='cpu'
-        )
+        load_checkpoint(model, str(weight_file), map_location='cpu')
 
         model.CLASSES = self.dataloader.dataset.CLASSES
 
