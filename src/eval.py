@@ -233,25 +233,25 @@ def _compute_labels_scores_for_one_gallery_frame(
     return labels, similarities
 
 def _compute_average_precision(
-    labels_sample: torch.Tensor,
-    scores_sample: torch.Tensor
+    labels: torch.Tensor,
+    scores: torch.Tensor
 ) -> torch.float:
     """
     IMPORTANT: In SYSU evaluation, we evaluate per sample.
     Namely, they compute the 'Average' precision over elements in the gallery.
     We follow the same logic here.
     """
-    indices_by_scores = scores_sample.cuda().argsort(descending=True).cpu()
-    ranks = labels_sample[indices_by_scores]
+    indices_by_scores = scores.cuda().argsort(descending=True).cpu()
+    labels_ranked = labels[indices_by_scores]
 
-    count_gt = ranks.sum()
+    count_gt = labels_ranked.sum()
     if count_gt == 0:
         return count_gt
 
-    tps = ranks.cumsum(0)
+    tps = labels_ranked.cumsum(0)
 
     precisions = (tps / torch.arange(1, len(tps) + 1))
-    precisions_at_delta_recall = precisions[ranks]
+    precisions_at_delta_recall = precisions[labels_ranked]
 
     return  precisions_at_delta_recall.sum() / count_gt
 
