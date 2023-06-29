@@ -26,7 +26,7 @@ def average(
 ) -> Tensor:
     if weight == 1:
         return text_similarity_only(query_text_features, frame_features)
-    if weight == 1:
+    if weight == 0:
         return image_similarity_only( query_image_features, frame_features)
 
     text_image_similarities = text_similarity_only( query_text_features, frame_features)
