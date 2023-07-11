@@ -107,7 +107,7 @@ def _get_text_features(
             tokens_features = model.encode_text(batch_tokens.cuda()).cpu()
         # Prends le token de <END_OF_SEQUENCE> => CLASS TOKEN
         features_text.extend(
-            tokens_features[:, batch_tokens.argmax(dim=-1)]
+            tokens_features[torch.arange(tokens_features.shape[0]), batch_tokens.argmax(dim=-1)]
             .float()
             .numpy()
         )
