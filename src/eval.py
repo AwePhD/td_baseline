@@ -1,12 +1,10 @@
 from pathlib import Path
-from typing import List, Generator, Dict, Optional, Tuple, Iterable, NewType
+from typing import List, Generator, Dict, Optional, Tuple, Iterable
 
 from tqdm import tqdm
 import h5py
 import numpy as np
 import pandas as pd
-import torch
-from torch.nn.functional import normalize
 
 from features_generation import (
     _import_annotations,
@@ -16,31 +14,29 @@ from features_generation import (
      H5_FRAME_OUTPUT_FILE,
 )
 from data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, CaptionsOutput, Gallery
-from compute_similarities import average, ComputeSimilarities
+from compute_similarities import pstr_similarities, ComputeSimilarities
 
 GALLERY_SIZE = 100
-SCORE_THRESHOLD = .25
+SCORE_THRESHOLD = .50
 #
-T_FLOAT = NewType('T_FLOAT', torch.float)
-
 def _get_frame_output_from_h5(h5_file: h5py.File, frame_id: int) -> FrameOutput:
     frame_id_key = f"s{frame_id}.jpg"
     return FrameOutput(
-        torch.tensor(h5_file[frame_id_key][FrameOutput._fields[0]]),
-        torch.tensor(h5_file[frame_id_key][FrameOutput._fields[1]]),
-        torch.tensor(h5_file[frame_id_key][FrameOutput._fields[2]]),
+        h5_file[frame_id_key][FrameOutput._fields[0]][...],
+        h5_file[frame_id_key][FrameOutput._fields[1]][...],
+        h5_file[frame_id_key][FrameOutput._fields[2]][...],
+        h5_file[frame_id_key][FrameOutput._fields[3]][...],
     )
 
 def _load_samples(
     annotations: pd.DataFrame,
     frame_id_to_frame_output: Dict[int, FrameOutput],
-    crop_index_to_captions_output: Dict[CropIndex, torch.Tensor]
+    crop_index_to_captions_output: Dict[CropIndex, np.ndarray]
 ) -> Generator[Sample, None, None]:
     for _, annotation_sample in annotations.groupby("person_id"):
         all_gt_bboxes = (
             annotation_sample[["bbox_x", "bbox_y","bbox_w", "bbox_h" ]]
             [annotation_sample.bbox_w != 0 ]
-            # int32 because tensor cannot convert from uint16 (dtype of bbox coords).
             .astype('Int32')
             .copy()
         )
@@ -52,7 +48,7 @@ def _load_samples(
             query_index.frame_id,
             frame_id_to_frame_output[query_index.frame_id],
             crop_index_to_captions_output[query_index],
-            torch.tensor(all_gt_bboxes.loc[query_index].values, dtype=torch.int32)
+            all_gt_bboxes.loc[query_index].values.astype('int32')
         )
 
         gallery_indexes =  [
@@ -63,10 +59,9 @@ def _load_samples(
             GalleryFrame(
                 frame_index.frame_id,
                 frame_id_to_frame_output[frame_index.frame_id],
-                torch.tensor(all_gt_bboxes.loc[frame_index].values, dtype=torch.int32)
+                all_gt_bboxes.loc[frame_index].values.astype(np.int32)
                 if frame_index in all_gt_bboxes.index
                 else None
-
             )
             for frame_index in gallery_indexes
         ]
@@ -96,7 +91,7 @@ def _load_samples_io(
             query_index.frame_id,
             _get_frame_output_from_h5(frame_output_h5, query_index.frame_id),
             crop_index_to_captions_output[query_index],
-            torch.tensor(gt_bboxes.loc[query_index].values, dtype=torch.int32),
+            gt_bboxes.loc[query_index].values.astype(np.int32),
 
         )
 
@@ -108,7 +103,7 @@ def _load_samples_io(
             GalleryFrame(
                 frame_index.frame_id,
                 _get_frame_output_from_h5(frame_output_h5, frame_index.frame_id),
-                torch.tensor(gt_bboxes.loc[frame_index].values, dtype=torch.int32)
+                gt_bboxes.loc[frame_index].values.astype(np.int32)
                 if frame_index in gt_bboxes.index
                 else None
 
@@ -120,14 +115,14 @@ def _load_samples_io(
     frame_output_h5.close()
 
 def _compute_ious(
-    output_bboxes: torch.Tensor,
-    gt_bbox: torch.Tensor,
-) -> torch.Tensor:
+    output_bboxes: np.ndarray,
+    gt_bbox: np.ndarray,
+) -> np.ndarray:
     """
     Compute IoUs between bboxes from model and its GT.
 
-    output_bboxes (torch.Tensor): (N_BBOXES, 4) tensor of bboxes from model
-    gt_bbox (torch.Tensor): (4,) Ground Truth bbox from annotation
+    output_bboxes (np.ndarray): (N_BBOXES, 4) tensor of bboxes from model
+    gt_bbox (np.ndarray): (4,) Ground Truth bbox from annotation
     return: the index of the best matching (highest IoU) model bbox
     """
     # 1. calculate the inters coordinate
@@ -156,7 +151,7 @@ def _compute_ious(
 
 def _get_features_of_best_output_bbox(
     query: Query
-) -> torch.Tensor:
+) -> np.ndarray:
     """
      Filter query bbox output (does not depend upon captions)
      1 Select bbox with best IoU compared to gt
@@ -164,12 +159,14 @@ def _get_features_of_best_output_bbox(
     """
     i_best_match = _compute_ious(query.frame_output.bboxes, query.gt_bbox).argmax()
 
-    return normalize(
-        query.frame_output.features[i_best_match].unsqueeze(0))[0]
+    return (
+        query.frame_output.features_pstr[i_best_match],
+        query.frame_output.features_clip[i_best_match],
+    )
 
 def _check_bboxes_match(
-    output_bboxes: torch.Tensor,
-    gt_bbox: torch.Tensor
+    output_bboxes: np.ndarray,
+    gt_bbox: np.ndarray
 ) -> Optional[int]:
     width, height = gt_bbox[2] - gt_bbox[0], gt_bbox[3] - gt_bbox[1]
     iou_threshold =  min(0.5, (width * height) / ((width + 10) * (height + 10)))
@@ -185,11 +182,11 @@ def _check_bboxes_match(
 
 def _compute_labels_scores_for_one_gallery_frame(
     frame: GalleryFrame,
-    query_text_features: torch.Tensor,
-    query_image_features: torch.Tensor,
+    query_text_features: np.ndarray,
+    query_crop_features_pstr_clip: np.ndarray,
     compute_similarities: ComputeSimilarities,
     threshold: float,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[float, float]:
     """
     1 Keep detections above a certain thresholds
     pass to the next element
@@ -214,41 +211,45 @@ def _compute_labels_scores_for_one_gallery_frame(
         return None
 
     # [n_result, 512]
-    frame_features = normalize(
-        frame.frame_output.features[kept_index])
+    crops_features_pstr_clip = (
+        frame.frame_output.features_pstr[kept_index],
+        frame.frame_output.features_clip[kept_index],
+    )
 
     # [n_result]
     similarities = compute_similarities(
-        query_image_features,
+        query_crop_features_pstr_clip,
         query_text_features,
-        frame_features,
+        crops_features_pstr_clip,
     )
 
-    labels = torch.zeros(n_result, dtype=bool)
+    labels = np.zeros(n_result, dtype=bool)
 
     # No query person inside the gallery frame
     if frame.gt_bbox is None:
         return labels, similarities
 
     # [n_result]
-    indices_by_similarities = similarities.argsort(descending=True)
+    indices_by_similarities = similarities.argsort()[::-1]
     i_bbox = _check_bboxes_match(
-        frame.frame_output.bboxes[kept_index][indices_by_similarities], frame.gt_bbox)
+        frame.frame_output.bboxes[kept_index][indices_by_similarities],
+        # frame.frame_output.bboxes[kept_index][indices_by_similarities].squeeze(0),
+        frame.gt_bbox)
     if i_bbox is not None:
         labels[i_bbox] = True
 
     return labels, similarities
 
 def _compute_average_precision(
-    labels: torch.Tensor,
-    scores: torch.Tensor,
+    labels: np.ndarray,
+    scores: np.ndarray,
     count_gt: int,
-) -> T_FLOAT:
+) -> float:
     """
     Namely, we compute the average precision over recall values i.e cut-off for each TPs.
     There is a penality if the co
     """
-    indices_by_scores = scores.cuda().argsort(descending=True).cpu()
+    indices_by_scores = scores.argsort()[::-1]
     labels_ranked = labels[indices_by_scores]
 
     count_tp = labels_ranked.sum()
@@ -259,7 +260,7 @@ def _compute_average_precision(
 
     tps = labels_ranked.cumsum(0)
 
-    precisions = (tps / torch.arange(1, len(tps) + 1))
+    precisions = (tps / np.arange(1, len(tps) + 1))
     precisions_at_delta_recall = precisions[labels_ranked]
     mean_average_precision = precisions_at_delta_recall.sum() / count_tp
 
@@ -267,11 +268,11 @@ def _compute_average_precision(
 
 def _evaluate_one_query_for_one_sample(
     gallery: Gallery,
-    query_text_features: torch.Tensor,
-    query_image_features: torch.Tensor,
+    query_text_features: np.ndarray,
+    query_crop_features_pstr_clip: np.ndarray,
     compute_similarities: ComputeSimilarities,
     threshold: float
-) -> T_FLOAT:
+) -> float:
     """
     1. Init labels and scores variables for the sample. They
     respectively denote the positions of the GTs among the detections results
@@ -279,26 +280,26 @@ def _evaluate_one_query_for_one_sample(
     2. For each frame in gallery, get scores and labels of the search
     3. Gather results from every searches in gallery.
     """
-    labels_temp: List[torch.Tensor] = []
-    scores_temp: List[torch.Tensor] = []
+    labels_temp: List[np.ndarray] = []
+    scores_temp: List[np.ndarray] = []
 
     for gallery_frame in gallery:
         # (labels, scores) for the gallery frame OR None
         result = _compute_labels_scores_for_one_gallery_frame(
             gallery_frame,
             query_text_features,
-            query_image_features,
+            query_crop_features_pstr_clip,
             compute_similarities,
             threshold
         )
         if result is None:
             continue
 
-        labels_temp.append(result[0])
-        scores_temp.append(result[1])
+        labels_temp.append(result[0].reshape(1, -1))
+        scores_temp.append(result[1].reshape(1, -1))
 
-    labels = torch.cat(labels_temp)
-    scores = torch.cat(scores_temp)
+    labels = np.concatenate(labels_temp, axis=1).squeeze()
+    scores = np.concatenate(scores_temp, axis=1).squeeze()
 
     count_gt = sum(frame.gt_bbox is not None for frame in gallery)
 
@@ -308,20 +309,20 @@ def _evaluate_one_sample(
     sample: Sample,
     compute_similarities: ComputeSimilarities,
     threshold: float = SCORE_THRESHOLD,
-) -> Tuple[T_FLOAT, T_FLOAT]:
+) -> Tuple[float, float]:
     """
      1. Get query image features
      2. Evaluate two searches - 2 mAP values. One search by caption
      3. Return both mAPs
     """
     # [512]
-    query_image_features = _get_features_of_best_output_bbox(sample.query)
+    query_crop_features_pstr_clip = _get_features_of_best_output_bbox(sample.query)
 
     return tuple(
         _evaluate_one_query_for_one_sample(
             sample.gallery,
-            normalize(caption_features.unsqueeze(0))[0],
-            query_image_features,
+            caption_features,
+            query_crop_features_pstr_clip,
             compute_similarities,
             threshold
         )
@@ -344,7 +345,7 @@ def compute_mean_average_precision(
     compute_similarities: ComputeSimilarities,
     threshold: float,
 ) -> float:
-    average_precisions: List[T_FLOAT] = []
+    average_precisions: List[float] = []
 
     for sample  in tqdm(samples):
         average_precisions.extend(
@@ -354,7 +355,7 @@ def compute_mean_average_precision(
 
 def main():
     samples = import_data(H5_CAPTIONS_OUTPUT_FILE, H5_FRAME_OUTPUT_FILE)
-    mean_average_precision = compute_mean_average_precision(samples, average, SCORE_THRESHOLD)
+    mean_average_precision = compute_mean_average_precision(samples, pstr_similarities, SCORE_THRESHOLD)
     print(f"mAP: {mean_average_precision:.2%}")
 
 
