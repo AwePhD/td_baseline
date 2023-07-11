@@ -7,6 +7,8 @@ class DetectionOutput(NamedTuple):
     scores: torch.Tensor
     # (100, 4)
     bboxes: torch.Tensor
+    # (100, 512)
+    features_pstr: torch.Tensor
 
 class CaptionsOutput(NamedTuple):
     caption_1: torch.Tensor
@@ -18,7 +20,9 @@ class FrameOutput(NamedTuple):
     # (100, 4)
     bboxes: torch.Tensor
     # (100, 512)
-    features: torch.Tensor
+    features_pstr: torch.Tensor
+    # (100, 512)
+    features_clip: torch.Tensor
 
 class CropIndex(NamedTuple):
     person_id: int
