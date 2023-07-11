@@ -4,6 +4,7 @@ from pathlib import Path
 import h5py
 import pandas as pd
 import torch
+import numpy as np
 from torch.utils.data import DataLoader
 from PIL import Image
 import torchvision.transforms as T
@@ -102,10 +103,14 @@ def _get_text_features(
         crop_indexes.extend(batch_crop_indexes)
 
         with torch.no_grad():
+            tokens_features: torch.Tensor
             tokens_features = model.encode_text(batch_tokens.cuda()).cpu()
         # Prends le token de <END_OF_SEQUENCE> => CLASS TOKEN
         features_text.extend(
-            tokens_features[:, batch_tokens.argmax(dim=-1)].float())
+            tokens_features[:, batch_tokens.argmax(dim=-1)]
+            .float()
+            .numpy()
+        )
     assert len(crop_indexes) == len(features_text)
 
     n_samples = len(crop_indexes)
@@ -123,29 +128,23 @@ preprocess_crop = T.Compose([
 def _compute_features_from_one_frame(
     model: CLIP,
     frame_file: Path,
-    bboxes: torch.Tensor
-) -> torch.Tensor:
+    bboxes: np.ndarray,
+) -> np.ndarray:
     frame = Image.open(str(frame_file))
-    crops = [
-        frame.crop((
-            int(bbox[0]),
-            int(bbox[1]),
-            int(bbox[2]),
-            int(bbox[3])
-        ))
-        for bbox in bboxes
-    ]
+    # crop method perfoms an integer approximation
+    crops = [ frame.crop(bbox) for bbox in bboxes ]
 
     crops_preprocessed = torch.stack([preprocess_crop(crop) for crop in crops])
 
     with torch.no_grad():
+        crops_features: torch.Tensor
         crops_features = (
             model.encode_image(crops_preprocessed.cuda())
             # Last layer + send to CPU
             [:, 0, :].cpu()
         )
 
-    return crops_features
+    return crops_features.numpy()
 
 def _compute_and_frame_output(
     model: CLIP,
@@ -155,6 +154,7 @@ def _compute_and_frame_output(
         frame_file: FrameOutput(
             detection.scores,
             detection.bboxes,
+            detection.features_pstr,
             _compute_features_from_one_frame(model, frame_file, detection.bboxes),
         )
         for frame_file, detection in tqdm(frame_file_to_detection.items())
@@ -186,7 +186,8 @@ def export_frame_output_to_hdf5(
 
             group.create_dataset('scores', data=frame_output.scores)
             group.create_dataset('bboxes', data=frame_output.bboxes)
-            group.create_dataset('features', data=frame_output.features)
+            group.create_dataset('features_pstr', data=frame_output.features_pstr)
+            group.create_dataset('features_clip', data=frame_output.features_clip)
 
 def _assert_detection_output_and_annotations_compatibility(
     annotations: pd.DataFrame,
@@ -245,7 +246,7 @@ def main():
 
     _generate_captions_output_to_hdf5(annotations, model)
 
-    frame_file_to_detection= import_from_hdf5(H5_FILE, FRAME_FOLDER)
+    frame_file_to_detection = import_from_hdf5(H5_FILE, FRAME_FOLDER)
     # Assure that annotations (used for evaluation) and the output
     # of the model (used for detection compute) have the same frame files
     _assert_detection_output_and_annotations_compatibility(annotations, frame_file_to_detection)
@@ -263,9 +264,10 @@ def import_frame_output_from_hdf5(h5_file: Path) -> Dict[int, FrameOutput]:
         frame_id_to_frame_output = {
             _extract_int_from_str(frame_filename):
                 FrameOutput(
-                    torch.tensor(frame_output[FrameOutput._fields[0]]),
-                    torch.tensor(frame_output[FrameOutput._fields[1]]),
-                    torch.tensor(frame_output[FrameOutput._fields[2]]),
+                    frame_output[FrameOutput._fields[0]][...],
+                    frame_output[FrameOutput._fields[1]][...],
+                    frame_output[FrameOutput._fields[2]][...],
+                    frame_output[FrameOutput._fields[3]][...],
                 )
             for frame_filename, frame_output in hd5_file.items()
         }
@@ -280,8 +282,8 @@ def import_captions_output_from_hdf5(h5_file: Path) -> Dict[CropIndex, FrameOutp
                 _extract_int_from_str(crop_index_name.split("_")[1])
             ):
                 CaptionsOutput(
-                    torch.tensor(captions_output[CaptionsOutput._fields[0]]),
-                    torch.tensor(captions_output[CaptionsOutput._fields[1]]),
+                    captions_output[CaptionsOutput._fields[0]][...],
+                    captions_output[CaptionsOutput._fields[1]][...],
                 )
             for crop_index_name, captions_output in hd5_file.items()
         }
