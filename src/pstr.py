@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Dict
 
 import torch
+import numpy as np
 from torch.utils.data import DataLoader
 import mmcv
 from mmcv.runner import load_checkpoint
@@ -10,7 +11,7 @@ from mmdet.models import build_detector
 from mmdet.datasets import (build_dataloader, build_dataset, replace_ImageToTensor)
 
 CONFIG_FILE = str(Path.cwd() / "configs" / "pstr" / "tdbaseline.py")
-WEIGHT_FILE = Path().home() / "models" "pstr_resnet_cuhk" / "pstr_r50_cuhk.pth"
+WEIGHT_FILE = Path().home() / "models" / "pstr_resnet_cuhk" / "pstr_r50_cuhk.pth"
 
 class PSTR:
     """
@@ -19,8 +20,8 @@ class PSTR:
     - It is initialized by a config file and the weight of the model.
     - It can run infer that outputs PSTR result for the whole dataset.
     """
-    def _load_config(self, config_file: Path) -> mmcv.Config:
-        cfg = mmcv.Config.fromfile(Path("./configs/pstr/pstr_r50_24e_cuhk.py"))
+    def _load_config(self, config_file: Path = CONFIG_FILE) -> mmcv.Config:
+        cfg = mmcv.Config.fromfile(config_file)
         cfg.model.pretrained = None
         cfg.data.test.test_mode = True
         cfg.model.train_cfg = None
@@ -56,11 +57,11 @@ class PSTR:
         self.dataloader = self._load_dataloader()
         self.model = self._load_model(weight_file)
 
-    def infer(self) -> Dict[Path, torch.Tensor]:
+    def infer(self) -> Dict[Path, np.ndarray]:
         with torch.no_grad():
             results = {
                 Path(data['img_metas'][0].data[0][0]['filename']):
-                    self.model(return_loss=False, rescale=True, **data)
+                    self.model(return_loss=False, rescale=True, **data)[0][0]
                 for data in self.dataloader
             }
         return results
