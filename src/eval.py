@@ -233,7 +233,6 @@ def _compute_labels_scores_for_one_gallery_frame(
     indices_by_similarities = similarities.argsort()[::-1]
     i_bbox = _check_bboxes_match(
         frame.frame_output.bboxes[kept_index][indices_by_similarities],
-        # frame.frame_output.bboxes[kept_index][indices_by_similarities].squeeze(0),
         frame.gt_bbox)
     if i_bbox is not None:
         labels[i_bbox] = True
@@ -299,8 +298,8 @@ def _evaluate_one_query_for_one_sample(
         labels_temp.append(result[0].reshape(1, -1))
         scores_temp.append(result[1].reshape(1, -1))
 
-    labels = np.concatenate(labels_temp, axis=1).squeeze()
-    scores = np.concatenate(scores_temp, axis=1).squeeze()
+    labels = np.concatenate(labels_temp, axis=1).ravel()
+    scores = np.concatenate(scores_temp, axis=1).ravel()
 
     count_gt = sum(frame.gt_bbox is not None for frame in gallery)
 
