@@ -151,7 +151,7 @@ def _compute_ious(
 
 def _get_features_of_best_output_bbox(
     query: Query
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
     """
      Filter query bbox output (does not depend upon captions)
      1 Select bbox with best IoU compared to gt
@@ -183,7 +183,7 @@ def _check_bboxes_match(
 def _compute_labels_scores_for_one_gallery_frame(
     frame: GalleryFrame,
     query_text_features: np.ndarray,
-    query_crop_features_pstr_clip: np.ndarray,
+    query_crop_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
     compute_similarities: ComputeSimilarities,
     threshold: float,
 ) -> Tuple[float, float]:
@@ -268,7 +268,7 @@ def _compute_average_precision(
 def _evaluate_one_query_for_one_sample(
     gallery: Gallery,
     query_text_features: np.ndarray,
-    query_crop_features_pstr_clip: np.ndarray,
+    query_crop_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
     compute_similarities: ComputeSimilarities,
     threshold: float
 ) -> float:

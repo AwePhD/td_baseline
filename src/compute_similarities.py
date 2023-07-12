@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Tuple
 
 import numpy as np
 from numpy.linalg import norm
@@ -17,9 +17,9 @@ def normalize(features: np.ndarray) -> np.ndarray:
     return features / norm(features, axis=1).reshape(-1, 1)
 
 def pstr_similarities(
-    query_crop_features_pstr_clip: np.ndarray,
+    query_crop_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
     query_text_features: np.ndarray,
-    crops_features_pstr_clip: np.ndarray,
+    crops_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
 ) -> np.ndarray:
     query_crop_features_pstr, _ = query_crop_features_pstr_clip
     assert len(query_crop_features_pstr) == PSTR_FEATURES_LENTGH
