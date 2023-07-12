@@ -248,14 +248,13 @@ def _compute_average_precision(
     Namely, we compute the average precision over recall values i.e cut-off for each TPs.
     There is a penality if the co
     """
-    indices_by_scores = scores.argsort()[::-1]
-    labels_ranked = labels[indices_by_scores]
-
-    count_tp = labels_ranked.sum()
+    # No TP -> AP = 0
+    count_tp = labels.sum()
     if count_tp == 0:
         return count_tp
 
-    recall_rate_penality = count_tp / count_gt
+    indices_by_scores = scores.argsort()[::-1]
+    labels_ranked = labels[indices_by_scores]
 
     tps = labels_ranked.cumsum(0)
 
@@ -263,6 +262,7 @@ def _compute_average_precision(
     precisions_at_delta_recall = precisions[labels_ranked]
     mean_average_precision = precisions_at_delta_recall.sum() / count_tp
 
+    recall_rate_penality = count_tp / count_gt
     return  mean_average_precision * recall_rate_penality
 
 def _evaluate_one_query_for_one_sample(
