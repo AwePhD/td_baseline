@@ -138,7 +138,7 @@ def _compute_ious(
     inters = iw * ih
 
     # 3.calculate the area of union
-    uni = (
+    unions = (
         (output_bboxes[:, 2] - output_bboxes[:, 0] + 1.)
         * (output_bboxes[:, 3] - output_bboxes[:, 1] + 1.)
         + (gt_bbox[2] - gt_bbox[0] + 1.) * (gt_bbox[3] - gt_bbox[1] + 1.)
@@ -146,7 +146,7 @@ def _compute_ious(
     )
 
     # 4.calculate the overlaps and find the max overlap ,the max overlaps index for pred_box
-    return inters / uni
+    return inters / unions
 
 
 def _get_features_of_best_output_bbox(
