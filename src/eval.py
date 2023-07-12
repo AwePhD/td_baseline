@@ -295,6 +295,7 @@ def _evaluate_one_query_for_one_sample(
         if result is None:
             continue
 
+        # Add one dim to be able to concatenate them
         labels_temp.append(result[0].reshape(1, -1))
         scores_temp.append(result[1].reshape(1, -1))
 
