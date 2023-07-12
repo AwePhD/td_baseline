@@ -34,7 +34,7 @@ def pstr_similarities(
         'ik,jk->ij',
         normalize(query_crop_features_pstr.reshape(1, -1)),
         normalize(crops_features_pstr),
-    ).squeeze()
+    ).ravel()
 
 
 def image_similarity_only(
