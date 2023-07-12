@@ -168,6 +168,10 @@ def _check_bboxes_match(
     output_bboxes: np.ndarray,
     gt_bbox: np.ndarray
 ) -> Optional[int]:
+    """
+    Check if one of the bbox outputs matche the GT.
+    Return None if none of them match
+    """
     width, height = gt_bbox[2] - gt_bbox[0], gt_bbox[3] - gt_bbox[1]
     iou_threshold =  min(0.5, (width * height) / ((width + 10) * (height + 10)))
     ious = _compute_ious(output_bboxes, gt_bbox)
@@ -230,14 +234,21 @@ def _compute_labels_scores_for_one_gallery_frame(
         return labels, similarities
 
     # [n_result]
+    # NOTE: Tricky part
+    # We prioritize the matching by starting with the best IoU
+    # Also we have to reorder the similarites because i_bbox
+    # is an index based on the similarities decreasing order!
+    # If we don't, the similarities does not match their labels anymore
     indices_by_similarities = similarities.argsort()[::-1]
+    ranked_similarities = similarities[indices_by_similarities]
+    ranked_bboxes = frame.frame_output.bboxes[kept_index][indices_by_similarities]
     i_bbox = _check_bboxes_match(
-        frame.frame_output.bboxes[kept_index][indices_by_similarities],
+        ranked_bboxes,
         frame.gt_bbox)
     if i_bbox is not None:
         labels[i_bbox] = True
 
-    return labels, similarities
+    return labels, ranked_similarities
 
 def _compute_average_precision(
     labels: np.ndarray,
