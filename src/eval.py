@@ -14,7 +14,7 @@ from features_generation import (
      H5_FRAME_OUTPUT_FILE,
 )
 from data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, CaptionsOutput, Gallery
-from compute_similarities import pstr_similarities, ComputeSimilarities
+from compute_similarities import pstr_similarities, build_baseline_similarities, ComputeSimilarities
 
 GALLERY_SIZE = 100
 SCORE_THRESHOLD = .50
@@ -365,8 +365,14 @@ def compute_mean_average_precision(
     return np.mean(average_precisions)
 
 def main():
+    # compute_similarities = pstr_similarities
+    weight_of_text_features = 1
+    compute_similarities = build_baseline_similarities(weight_of_text_features)
+
     samples = import_data(H5_CAPTIONS_OUTPUT_FILE, H5_FRAME_OUTPUT_FILE)
-    mean_average_precision = compute_mean_average_precision(samples, pstr_similarities, SCORE_THRESHOLD)
+
+    mean_average_precision = compute_mean_average_precision(samples, compute_similarities, SCORE_THRESHOLD)
+
     print(f"mAP: {mean_average_precision:.2%}")
 
 
