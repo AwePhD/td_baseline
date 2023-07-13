@@ -354,7 +354,7 @@ def import_data(
 def compute_mean_average_precision(
     samples: Iterable[Sample],
     compute_similarities: ComputeSimilarities,
-    threshold: float,
+    threshold: float = SCORE_THRESHOLD,
 ) -> float:
     average_precisions: List[float] = []
 
@@ -371,7 +371,7 @@ def main():
 
     samples = import_data(H5_CAPTIONS_OUTPUT_FILE, H5_FRAME_OUTPUT_FILE)
 
-    mean_average_precision = compute_mean_average_precision(samples, compute_similarities, SCORE_THRESHOLD)
+    mean_average_precision = compute_mean_average_precision(samples, compute_similarities)
 
     print(f"mAP: {mean_average_precision:.2%}")
 
