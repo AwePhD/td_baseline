@@ -319,7 +319,7 @@ def _evaluate_one_query_for_one_sample(
 def _evaluate_one_sample(
     sample: Sample,
     compute_similarities: ComputeSimilarities,
-    threshold: float = SCORE_THRESHOLD,
+    threshold: float,
 ) -> Tuple[float, float]:
     """
      1. Get query image features
