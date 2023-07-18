@@ -1,24 +1,33 @@
-ARG PYTORCH="1.6.0"
-ARG CUDA="10.1"
-ARG CUDNN="7"
+# ---------------------- BUILD MMDET/MMCV ----------------------
+# Build the mmdet / PSTR python package with CUDA compiler
+FROM pytorch/pytorch:1.8.0-cuda11.1-cudnn8-devel AS build
 
-FROM pytorch/pytorch:${PYTORCH}-cuda${CUDA}-cudnn${CUDNN}-devel
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A4B469963BF863CC
+RUN apt-get update && \
+    apt-get install -y gcc vim ffmpeg libsm6 libxext6 git ninja-build libglib2.0-0 libsm6 libxrender-dev libxext6 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    ln -s /opt/conda/bin/conda /bin/conda
 
+SHELL ["conda", "run", "-n", "base", "/bin/bash", "-c"]
+ENV FORCE_CUDA="1"
 ENV TORCH_CUDA_ARCH_LIST="6.0 6.1 7.0+PTX"
 ENV TORCH_NVCC_FLAGS="-Xfatbin -compress-all"
 ENV CMAKE_PREFIX_PATH="$(dirname $(which conda))/../"
+RUN git clone https://github.com/JialeCao001/PSTR.git /pstr && \
+    pip install --no-cache-dir --upgrade pip wheel && \
+    MMCV_WITH_OPS=1 pip install --no-cache-dir /pstr/mmcv && \
+    pip install --no-cache-dir /pstr
 
-RUN apt-get update && apt-get install -y ffmpeg libsm6 libxext6 git ninja-build libglib2.0-0 libsm6 libxrender-dev libxext6 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# ---------------------- TD-BASE DEPENDENCIES ----------------------
+# Create the base environment with the smaller runtime image
+# We must get the built package from last container
+FROM pytorch/pytorch:1.8.0-cuda11.1-cudnn8-runtime AS base
 
-# Install MMCV
-RUN pip install mmcv-full==1.3.17 -f https://download.openmmlab.com/mmcv/dist/cu101/torch1.6.0/index.html
+COPY --from=build /opt/conda/lib/python3.8/site-packages/mmcv /opt/conda/lib/python3.8/site-packages/mmcv
+COPY --from=build /opt/conda/lib/python3.8/site-packages/mmdet /opt/conda/lib/python3.8/site-packages/mmdet
+RUN apt-get update && apt-get install -y vim git gcc && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install MMDetection
-RUN conda clean --all
-RUN git clone https://github.com/open-mmlab/mmdetection.git /mmdetection
-WORKDIR /mmdetection
-ENV FORCE_CUDA="1"
-RUN pip install -r requirements/build.txt
-RUN pip install --no-cache-dir -e .
+SHELL ["conda", "run", "-n", "base", "/bin/bash", "-c"]
+COPY ./base.requirements.txt .
+RUN pip install --no-cache-dir -r ./base.requirements.txt
