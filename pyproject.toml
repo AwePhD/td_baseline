@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tdBaseline"
+authors = [
+  { name="Mathias Réus", email="mathias.reus@gipsa-lab.fr" },
+]
+description = "Simple TD Baseline, based on IRRA and PSTR"
+requires-python = "~= 3.8"
+dynamic = ["version"]
+classifiers = [ "Programming Language :: Python :: 3", ]
+
+[project.urls]
+"Homepage" = "https://github.com/AwePhD/td_baseline"
+
+[tool.hatch.version]
+path = "src/tdbaseline/__init__.py"
