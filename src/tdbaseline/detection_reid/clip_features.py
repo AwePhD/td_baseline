@@ -3,14 +3,13 @@ from pathlib import Path
 
 import h5py
 import pandas as pd
-import torch
 import numpy as np
 from PIL import Image
 from irra.model.clip_model import CLIP
 from tqdm import tqdm
 
 from ..utils import prompt_rm_to_user, extract_int_from_str
-from ..compute_features_from_crops import compute_features_from_crops, preprocess_crop
+from ..crop_features import compute_features_from_crops
 from ..data_struct import FrameOutput
 from .detections_generation import DetectionOutput
 
@@ -26,9 +25,8 @@ def _compute_features_from_one_frame(
     frame = Image.open(str(frame_file))
     # crop method perfoms an integer approximation
     crops = [ frame.crop(bbox) for bbox in bboxes ]
-    crops_preprocessed = torch.stack([preprocess_crop(crop) for crop in crops])
 
-    return compute_features_from_crops(model, crops_preprocessed)
+    return compute_features_from_crops(model, crops)
 
 def _compute_and_frame_output(
     model: CLIP,

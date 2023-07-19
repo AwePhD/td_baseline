@@ -11,6 +11,7 @@ from ..captions_features import import_captions_output_from_hdf5
 from ..data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, CaptionsOutput, Gallery
 from .clip_features import import_frame_output_from_hdf5
 from .compute_similarities import ComputeSimilarities
+from ..utils import gt_bboxes_from_annotations
 
 GALLERY_SIZE = 100
 SCORE_THRESHOLD = .25
@@ -30,21 +31,14 @@ def _load_samples(
     crop_index_to_captions_output: Dict[CropIndex, np.ndarray]
 ) -> Generator[Sample, None, None]:
     for _, annotation_sample in annotations.groupby("person_id"):
-        all_gt_bboxes = (
-            annotation_sample[["bbox_x", "bbox_y","bbox_w", "bbox_h" ]]
-            [annotation_sample.bbox_w != 0 ]
-            .astype(np.int32)
-            .copy()
-        )
-        all_gt_bboxes['bbox_x_end'] = all_gt_bboxes.bbox_x + all_gt_bboxes.pop("bbox_w")
-        all_gt_bboxes['bbox_y_end'] = all_gt_bboxes.bbox_y + all_gt_bboxes.pop("bbox_h")
+        sample_gt_bboxes = gt_bboxes_from_annotations(annotation_sample)
 
         query_index = CropIndex(*annotation_sample.query("type == 'query'").index[0])
         query = Query(
             query_index.frame_id,
             frame_id_to_frame_output[query_index.frame_id],
             crop_index_to_captions_output[query_index],
-            all_gt_bboxes.loc[query_index].values.astype('int32')
+            sample_gt_bboxes[query_index]
         )
 
         gallery_indexes =  [
@@ -55,8 +49,8 @@ def _load_samples(
             GalleryFrame(
                 frame_index.frame_id,
                 frame_id_to_frame_output[frame_index.frame_id],
-                all_gt_bboxes.loc[frame_index].values
-                if frame_index in all_gt_bboxes.index
+                sample_gt_bboxes[frame_index]
+                if frame_index in sample_gt_bboxes.keys()
                 else None
             )
             for frame_index in gallery_indexes
