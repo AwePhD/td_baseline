@@ -1,5 +1,6 @@
 from pathlib import Path
-from tdbaseline.clip import load_clip
+
+from tdbaseline.models.clip import load_clip
 from tdbaseline.cuhk_sysu_pedes import import_test_annotations, FRAME_FOLDER
 from tdbaseline.detections_generation import import_from_hdf5, H5_FILE
 from tdbaseline.features_generation import (

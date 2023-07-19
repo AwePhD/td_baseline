@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from tdbaseline.pstr import PSTR
+from tdbaseline.models.pstr import PSTR
 from tdbaseline.detections_generation import (
   get_detector_outputs_by_path,
   export_to_hdf5,

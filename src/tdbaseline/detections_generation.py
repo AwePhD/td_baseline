@@ -3,7 +3,7 @@ from typing import Dict
 
 import h5py
 
-from .pstr import PSTR
+from .models.pstr import PSTR
 from .data_struct import DetectionOutput
 
 H5_FILENAME = "filename_to_detection.h5"

@@ -8,7 +8,7 @@ import mmcv
 from mmcv.runner import load_checkpoint
 from mmcv.parallel import MMDataParallel
 from mmdet.models import build_detector
-from mmdet.datasets import (build_dataloader, build_dataset, replace_ImageToTensor)
+from mmdet.datasets import build_dataloader, build_dataset
 
 CONFIG_FILE = str(Path.cwd() / "configs" / "pstr" / "tdbaseline.py")
 WEIGHT_FILE = Path().home() / "models" / "pstr_resnet_cuhk" / "pstr_r50_cuhk.pth"

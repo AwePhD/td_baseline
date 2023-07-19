@@ -11,8 +11,8 @@ import torchvision.transforms as T
 from irra.model.clip_model import CLIP
 from tqdm import tqdm
 
-from .tokenizer import SimpleTokenizer, tokenize
-from .clip import IMAGE_SIZE
+from .models.tokenizer import SimpleTokenizer, tokenize
+from .models.clip import IMAGE_SIZE
 from .detections_generation import DetectionOutput
 from .data_struct import (CropIndex, FrameOutput, CaptionsOutput)
 
