@@ -6,12 +6,10 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from .cuhk_sysu_pedes import import_test_annotations
-from .features_generation import (
-     import_captions_output_from_hdf5,
-     import_frame_output_from_hdf5,
-)
-from .data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, CaptionsOutput, Gallery
+from ..cuhk_sysu_pedes import import_test_annotations
+from ..captions_features import import_captions_output_from_hdf5
+from ..data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, CaptionsOutput, Gallery
+from .clip_features import import_frame_output_from_hdf5
 from .compute_similarities import ComputeSimilarities
 
 GALLERY_SIZE = 100

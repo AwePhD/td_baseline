@@ -61,7 +61,7 @@ def build_baseline_similarities(weight_of_text_features: float) -> ComputeSimila
 
 def pstr_similarities(
     query_crop_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
-    query_text_features: np.ndarray,
+    query_text_features: np.ndarray, # pylint: disable=unused-argument
     crops_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
 ) -> np.ndarray:
     # PSTR only does image similarites

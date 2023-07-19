@@ -12,8 +12,8 @@ import logging
 
 import numpy as np
 
-from tdbaseline.eval import import_data, compute_mean_average_precision
-from tdbaseline.compute_similarities import build_baseline_similarities
+from tdbaseline.detection_reid.eval import import_data, compute_mean_average_precision
+from tdbaseline.detection_reid.compute_similarities import build_baseline_similarities
 
 NUMPY_BIN_FILE = Path("outputs", "xp_weights")
 

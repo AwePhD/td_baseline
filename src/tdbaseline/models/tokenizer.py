@@ -159,7 +159,7 @@ def tokenize(caption: str, tokenizer: SimpleTokenizer, text_length=77, truncate=
             raise RuntimeError(
                 f"Input {caption} is too long for context length {text_length}"
             )
-    result[:len(tokens)] = torch.tensor(tokens)
+    result[:len(tokens)] = torch.tensor(tokens) #pylint: disable=not-callable
     return result
 
 

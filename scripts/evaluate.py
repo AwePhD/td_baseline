@@ -1,9 +1,9 @@
-from tdbaseline.eval import (
+from tdbaseline.detection_reid.eval import (
   import_data,
   compute_mean_average_precision,
 )
 # pylint: disable=unused-import
-from tdbaseline.compute_similarities import pstr_similarities, build_baseline_similarities
+from tdbaseline.detection_reid.compute_similarities import pstr_similarities, build_baseline_similarities
 
 def main():
     compute_similarities = pstr_similarities

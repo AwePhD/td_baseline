@@ -2,9 +2,9 @@ from pathlib import Path
 
 from tdbaseline.models.clip import load_clip
 from tdbaseline.cuhk_sysu_pedes import import_test_annotations, FRAME_FOLDER
-from tdbaseline.detections_generation import import_from_hdf5, H5_FILE
-from tdbaseline.features_generation import (
-  generate_captions_output_to_hdf5,
+from tdbaseline.detection_reid.detections_generation import import_from_hdf5, H5_FILE
+from tdbaseline.captions_features import generate_captions_output_to_hdf5
+from tdbaseline.detection_reid.clip_features import (
   assert_detection_output_and_annotations_compatibility,
   generate_frame_output_to_hdf5,
 )
