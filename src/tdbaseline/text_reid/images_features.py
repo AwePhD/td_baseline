@@ -68,7 +68,7 @@ def from_crops_files(
 
 
 def from_annotations(
-    data_folder: Path, model_weight: Path = WEIGHT_FILE
+    data_folder: Path = DATA_FOLDER, model_weight: Path = WEIGHT_FILE
 ) -> Dict[CropIndex, torch.Tensor]:
 
     model = load_clip(model_weight).eval().cuda()
@@ -80,17 +80,17 @@ def from_annotations(
     crops = [
         (
             Image
-            .open(FRAME_FOLDER / f'{crop_index.frame_id}.jpg')
+            .open(FRAME_FOLDER / f's{crop_index.frame_id}.jpg')
             .crop(gt_bboxes[crop_index])
         )
-        for crop_index in gt_bboxes.index
+        for crop_index in gt_bboxes.keys()
     ]
 
     all_features = compute_features_from_crops(model, crops)
 
     return {
         CropIndex(*crop_index): features
-        for crop_index, features in zip(gt_bboxes.index, all_features)
+        for crop_index, features in zip(gt_bboxes.keys(), all_features)
     }
 
 
