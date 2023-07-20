@@ -9,7 +9,7 @@ from irra.model.clip_model import CLIP
 from tqdm import tqdm
 
 from ..utils import prompt_rm_to_user, extract_int_from_str
-from ..crop_features import compute_features_from_crops
+from ..crop_features import compute_features_from_one_frame
 from ..data_struct import FrameOutput, DetectionOutput
 
 TOKEN_BATCH_SIZE = 512
@@ -17,19 +17,7 @@ H5_FRAME_OUTPUT_FILENAME = "filename_to_frame_output.h5"
 H5_FRAME_OUTPUT_FILE = Path.cwd() / "outputs" / H5_FRAME_OUTPUT_FILENAME
 
 
-def _compute_features_from_one_frame(
-    model: CLIP,
-    frame_file: Path,
-    bboxes: np.ndarray,
-) -> np.ndarray:
-    frame = Image.open(str(frame_file))
-    # crop method perfoms an integer approximation
-    crops = [frame.crop(bbox) for bbox in bboxes]
-
-    return compute_features_from_crops(model, crops)
-
-
-def _compute_and_frame_output(
+def _compute_frame_file_to_frame_output(
     model: CLIP,
     frame_file_to_detection: Dict[Path, DetectionOutput],
 ) -> Dict[Path, FrameOutput]:
@@ -38,7 +26,7 @@ def _compute_and_frame_output(
             detection.scores,
             detection.bboxes,
             detection.features_pstr,
-            _compute_features_from_one_frame(
+            compute_features_from_one_frame(
                 model, frame_file, detection.bboxes),
         )
         for frame_file, detection in tqdm(frame_file_to_detection.items())
@@ -91,7 +79,7 @@ def generate_frame_output_to_hdf5(
         else:
             h5_file.unlink()
 
-    frame_file_to_frame_output = _compute_and_frame_output(
+    frame_file_to_frame_output = _compute_frame_file_to_frame_output(
         model, frame_file_to_detection)
     export_frame_output_to_hdf5(frame_file_to_frame_output, h5_file)
 

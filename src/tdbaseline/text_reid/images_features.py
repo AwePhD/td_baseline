@@ -4,7 +4,10 @@ Compute CLIP features from
 - Crops files
 - GT bboxes in the annotations. TODO: show differences between the crops
 and the GT
-- Crops from PSTR detection.
+- Crops from PSTR detection -> already computed from clip_features
+TODO: This computation comes before the clip_features scripts, it should
+be isolated and exported in the crops_features file. Then, the clip_features
+just have to open this file to make FrameOutput
 """
 
 import re
@@ -16,7 +19,10 @@ import numpy as np
 import torch
 from PIL import Image
 
-from ..crop_features import compute_features_from_crops
+from .. import pstr_output
+from ..crop_features import (
+    compute_features_from_crops, compute_features_from_one_frame
+)
 from ..models.clip import load_clip, WEIGHT_FILE
 from ..cuhk_sysu_pedes import (
     import_test_annotations,
@@ -70,7 +76,6 @@ def from_crops_files(
 def from_annotations(
     data_folder: Path = DATA_FOLDER, model_weight: Path = WEIGHT_FILE
 ) -> Dict[CropIndex, torch.Tensor]:
-
     model = load_clip(model_weight).eval().cuda()
 
     annotations = import_test_annotations(data_folder)

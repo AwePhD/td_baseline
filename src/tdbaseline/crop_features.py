@@ -1,8 +1,11 @@
+from pathlib import Path
 from typing import List
+import numpy as np
 import torch
 import torchvision.transforms as T
 
 from torch.utils.data import DataLoader
+from PIL import Image as Img
 from PIL.Image import Image
 
 from .models.clip import CLIP
@@ -19,7 +22,8 @@ _preprocess_crop = T.Compose([
 ])
 
 
-def compute_features_from_crops(model: CLIP, crops: List[Image]):
+def compute_features_from_crops(
+        model: CLIP, crops: List[Image]) -> np.ndarray:
     # crop method perfoms an integer approximation
     crops_preprocessed = torch.stack(
         [_preprocess_crop(crop) for crop in crops])
@@ -36,3 +40,15 @@ def compute_features_from_crops(model: CLIP, crops: List[Image]):
         crops_features.append(crops_features_batch)
 
     return torch.cat(crops_features).numpy()
+
+
+def compute_features_from_one_frame(
+    model: CLIP,
+    frame_file: Path,
+    bboxes: np.ndarray,
+) -> np.ndarray:
+    frame = Img.open(str(frame_file))
+    # crop method perfoms an integer approximation
+    crops = [frame.crop(bbox) for bbox in bboxes]
+
+    return compute_features_from_crops(model, crops)
