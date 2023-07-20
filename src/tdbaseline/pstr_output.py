@@ -3,8 +3,8 @@ from typing import Dict
 
 import h5py
 
-from ..models.pstr import PSTR
-from ..data_struct import DetectionOutput
+from .models.pstr import PSTR
+from .data_struct import DetectionOutput
 
 H5_FILENAME = "filename_to_detection.h5"
 H5_FILE = Path.cwd() / "outputs" / H5_FILENAME

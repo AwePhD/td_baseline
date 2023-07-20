@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from tdbaseline.models.pstr import PSTR
-from tdbaseline.detection_reid.detections_generation import (
+from tdbaseline.pstr_output import (
   get_detector_outputs_by_path,
   export_to_hdf5,
   H5_FILE

@@ -10,12 +10,12 @@ from tqdm import tqdm
 
 from ..utils import prompt_rm_to_user, extract_int_from_str
 from ..crop_features import compute_features_from_crops
-from ..data_struct import FrameOutput
-from .detections_generation import DetectionOutput
+from ..data_struct import FrameOutput, DetectionOutput
 
 TOKEN_BATCH_SIZE = 512
 H5_FRAME_OUTPUT_FILENAME = "filename_to_frame_output.h5"
 H5_FRAME_OUTPUT_FILE = Path.cwd() / "outputs" / H5_FRAME_OUTPUT_FILENAME
+
 
 def _compute_features_from_one_frame(
     model: CLIP,
@@ -24,9 +24,10 @@ def _compute_features_from_one_frame(
 ) -> np.ndarray:
     frame = Image.open(str(frame_file))
     # crop method perfoms an integer approximation
-    crops = [ frame.crop(bbox) for bbox in bboxes ]
+    crops = [frame.crop(bbox) for bbox in bboxes]
 
     return compute_features_from_crops(model, crops)
+
 
 def _compute_and_frame_output(
     model: CLIP,
@@ -37,10 +38,12 @@ def _compute_and_frame_output(
             detection.scores,
             detection.bboxes,
             detection.features_pstr,
-            _compute_features_from_one_frame(model, frame_file, detection.bboxes),
+            _compute_features_from_one_frame(
+                model, frame_file, detection.bboxes),
         )
         for frame_file, detection in tqdm(frame_file_to_detection.items())
     }
+
 
 def export_frame_output_to_hdf5(
     frame_file_to_frame_output: Dict[Path, FrameOutput],
@@ -56,8 +59,11 @@ def export_frame_output_to_hdf5(
 
             group.create_dataset('scores', data=frame_output.scores)
             group.create_dataset('bboxes', data=frame_output.bboxes)
-            group.create_dataset('features_pstr', data=frame_output.features_pstr)
-            group.create_dataset('features_clip', data=frame_output.features_clip)
+            group.create_dataset(
+                'features_pstr', data=frame_output.features_pstr)
+            group.create_dataset(
+                'features_clip', data=frame_output.features_clip)
+
 
 def assert_detection_output_and_annotations_compatibility(
     annotations: pd.DataFrame,
@@ -73,6 +79,7 @@ def assert_detection_output_and_annotations_compatibility(
     )
     assert annotations_frame_ids == h5_frame_ids
 
+
 def generate_frame_output_to_hdf5(
     frame_file_to_detection: Dict[Path, DetectionOutput],
     model: CLIP,
@@ -84,7 +91,8 @@ def generate_frame_output_to_hdf5(
         else:
             h5_file.unlink()
 
-    frame_file_to_frame_output = _compute_and_frame_output(model, frame_file_to_detection)
+    frame_file_to_frame_output = _compute_and_frame_output(
+        model, frame_file_to_detection)
     export_frame_output_to_hdf5(frame_file_to_frame_output, h5_file)
 
 
@@ -97,7 +105,7 @@ def import_frame_output_from_hdf5(h5_file: Path = H5_FRAME_OUTPUT_FILE) -> Dict[
                     frame_output[FrameOutput._fields[1]][...],
                     frame_output[FrameOutput._fields[2]][...],
                     frame_output[FrameOutput._fields[3]][...],
-                )
+            )
             for frame_filename, frame_output in hd5_file.items()
         }
 
