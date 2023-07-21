@@ -16,6 +16,8 @@ from ..utils import gt_bboxes_from_annotations
 GALLERY_SIZE = 100
 SCORE_THRESHOLD = .25
 #
+
+
 def _get_frame_output_from_h5(h5_file: h5py.File, frame_id: int) -> FrameOutput:
     frame_id_key = f"s{frame_id}.jpg"
     return FrameOutput(
@@ -25,6 +27,7 @@ def _get_frame_output_from_h5(h5_file: h5py.File, frame_id: int) -> FrameOutput:
         h5_file[frame_id_key][FrameOutput._fields[3]][...],
     )
 
+
 def _load_samples(
     annotations: pd.DataFrame,
     frame_id_to_frame_output: Dict[int, FrameOutput],
@@ -33,7 +36,8 @@ def _load_samples(
     for _, annotation_sample in annotations.groupby("person_id"):
         sample_gt_bboxes = gt_bboxes_from_annotations(annotation_sample)
 
-        query_index = CropIndex(*annotation_sample.query("type == 'query'").index[0])
+        query_index = CropIndex(
+            *annotation_sample.query("type == 'query'").index[0])
         query = Query(
             query_index.frame_id,
             frame_id_to_frame_output[query_index.frame_id],
@@ -41,7 +45,7 @@ def _load_samples(
             sample_gt_bboxes[query_index]
         )
 
-        gallery_indexes =  [
+        gallery_indexes = [
             CropIndex(person_id, frame_id)
             for person_id, frame_id in annotation_sample.query("type == 'gallery'").index
         ]
@@ -58,51 +62,6 @@ def _load_samples(
 
         yield Sample(query_index.person_id, query, gallery)
 
-
-def _load_samples_io(
-    annotations: pd.DataFrame,
-    frame_output_h5_file: Path,
-    crop_index_to_captions_output: Dict[CropIndex, CaptionsOutput]
-) -> Generator[Sample, None, None]:
-    frame_output_h5 = h5py.File(frame_output_h5_file, 'r')
-    for _, annotation_sample in annotations.groupby("person_id"):
-        gt_bboxes = (
-            annotation_sample[["bbox_x", "bbox_y","bbox_w", "bbox_h" ]]
-            [annotation_sample.bbox_x != 0 ]
-            # int32 because tensor cannot convert from uint16 (dtype of bbox coords).
-            .astype('Int32')
-            .copy()
-        )
-        gt_bboxes['bbox_x_end'] = gt_bboxes.bbox_x + gt_bboxes.pop("bbox_w")
-        gt_bboxes['bbox_y_end'] = gt_bboxes.bbox_y + gt_bboxes.pop("bbox_h")
-
-        query_index = CropIndex(*annotation_sample.query("type == 'query'").index.tolist()[0])
-        query = Query(
-            query_index.frame_id,
-            _get_frame_output_from_h5(frame_output_h5, query_index.frame_id),
-            crop_index_to_captions_output[query_index],
-            gt_bboxes.loc[query_index].values.astype(np.int32),
-
-        )
-
-        gallery_indexes =  [
-            CropIndex(person_id, frame_id)
-            for person_id, frame_id in annotation_sample.query("type == 'gallery'").index.tolist()
-        ]
-        gallery: List[GalleryFrame] = [
-            GalleryFrame(
-                frame_index.frame_id,
-                _get_frame_output_from_h5(frame_output_h5, frame_index.frame_id),
-                gt_bboxes.loc[frame_index].values.astype(np.int32)
-                if frame_index in gt_bboxes.index
-                else None
-
-            )
-            for frame_index in gallery_indexes
-        ]
-
-        yield Sample(query_index.person_id, query, gallery)
-    frame_output_h5.close()
 
 def _compute_ious(
     output_bboxes: np.ndarray,
@@ -147,12 +106,14 @@ def _get_features_of_best_output_bbox(
      1 Select bbox with best IoU compared to gt
      2 Normalize its image features
     """
-    i_best_match = np.argmax(_compute_ious(query.frame_output.bboxes, query.gt_bbox))
+    i_best_match = np.argmax(_compute_ious(
+        query.frame_output.bboxes, query.gt_bbox))
 
     return (
         query.frame_output.features_pstr[i_best_match],
         query.frame_output.features_clip[i_best_match],
     )
+
 
 def _check_bboxes_match(
     output_bboxes: np.ndarray,
@@ -163,7 +124,7 @@ def _check_bboxes_match(
     Return None if none of them match
     """
     width, height = gt_bbox[2] - gt_bbox[0], gt_bbox[3] - gt_bbox[1]
-    iou_threshold =  min(0.5, (width * height) / ((width + 10) * (height + 10)))
+    iou_threshold = min(0.5, (width * height) / ((width + 10) * (height + 10)))
     ious = _compute_ious(output_bboxes, gt_bbox)
 
     for i, iou in enumerate(ious):
@@ -171,7 +132,6 @@ def _check_bboxes_match(
             return i
 
     return None
-
 
 
 def _compute_labels_scores_for_one_gallery_frame(
@@ -240,6 +200,7 @@ def _compute_labels_scores_for_one_gallery_frame(
 
     return labels, ranked_similarities
 
+
 def _compute_average_precision(
     labels: np.ndarray,
     scores: np.ndarray,
@@ -264,7 +225,8 @@ def _compute_average_precision(
     mean_average_precision = precisions_at_delta_recall.sum() / count_tp
 
     recall_rate_penality = count_tp / count_gt
-    return  mean_average_precision * recall_rate_penality
+    return mean_average_precision * recall_rate_penality
+
 
 def _evaluate_one_query_for_one_sample(
     gallery: Gallery,
@@ -306,6 +268,7 @@ def _evaluate_one_query_for_one_sample(
 
     return _compute_average_precision(labels, scores, count_gt)
 
+
 def _evaluate_one_sample(
     sample: Sample,
     compute_similarities: ComputeSimilarities,
@@ -316,7 +279,8 @@ def _evaluate_one_sample(
      2. Evaluate two searches - 2 mAP values. One search by caption
      3. Return both mAPs
     """
-    query_crop_features_pstr_clip = _get_features_of_best_output_bbox(sample.query)
+    query_crop_features_pstr_clip = _get_features_of_best_output_bbox(
+        sample.query)
 
     return tuple(
         _evaluate_one_query_for_one_sample(
@@ -328,6 +292,7 @@ def _evaluate_one_sample(
         )
         for caption_features in sample.query.captions_output
     )
+
 
 def import_data(
     h5_captions_output_file: Optional[Path] = None,
@@ -348,6 +313,7 @@ def import_data(
     return _load_samples(
         annotations, frame_id_to_frame_output, crop_index_to_captions_output)
 
+
 def compute_mean_average_precision(
     samples: Iterable[Sample],
     compute_similarities: ComputeSimilarities,
@@ -355,7 +321,7 @@ def compute_mean_average_precision(
 ) -> float:
     average_precisions: List[float] = []
 
-    for sample  in tqdm(samples):
+    for sample in tqdm(samples):
         average_precisions.extend(
             _evaluate_one_sample(sample, compute_similarities, threshold))
 
