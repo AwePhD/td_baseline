@@ -12,16 +12,18 @@ just have to open this file to make FrameOutput
 
 import re
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import h5py
 import numpy as np
 import torch
 from PIL import Image
+from PIL.Image import Image as ImageType
+from irra.model.clip_model import CLIP
 
-from .. import pstr_output
 from ..crop_features import (
-    compute_features_from_crops, compute_features_from_one_frame
+    compute_features_from_crops,
+    build_dataloader_from_crops,
 )
 from ..models.clip import load_clip, WEIGHT_FILE
 from ..cuhk_sysu_pedes import (
@@ -41,6 +43,19 @@ def _crop_index_from_filename(filename: str) -> CropIndex:
         for number in extract_consecutive_numbers.findall(filename)
     )
     return CropIndex(*crop_index)
+
+
+def _compute_clip_features_from_crops(
+    model: CLIP,
+    crops: List[ImageType],
+) -> np.ndarray:
+    crops_dataloader = build_dataloader_from_crops(crops)
+
+    all_features: List[torch.Tensor] = []
+    for crops in crops_dataloader:
+        all_features.append(compute_features_from_crops(model, crops))
+
+    return torch.cat(all_features)
 
 
 def from_crops_files(
@@ -65,7 +80,7 @@ def from_crops_files(
         for crop_path in crops_folder.iterdir()
     ]
 
-    all_features = compute_features_from_crops(model, crops)
+    all_features = _compute_clip_features_from_crops(model, crops)
 
     return {
         _crop_index_from_filename(crop_path.name): features
@@ -91,7 +106,7 @@ def from_annotations(
         for crop_index in gt_bboxes.keys()
     ]
 
-    all_features = compute_features_from_crops(model, crops)
+    all_features = _compute_clip_features_from_crops(model, crops)
 
     return {
         CropIndex(*crop_index): features
