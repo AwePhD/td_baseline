@@ -9,7 +9,8 @@ from .data_struct import DetectionOutput
 H5_FILENAME = "filename_to_detection.h5"
 H5_FILE = Path.cwd() / "outputs" / H5_FILENAME
 
-def export_to_hdf5(
+
+def export_detection_output_to_hdf5(
     frame_file_to_detection: Dict[Path, DetectionOutput],
     file: Path
 ):
@@ -26,9 +27,11 @@ def export_to_hdf5(
 
             group.create_dataset('scores', data=detection_output.scores)
             group.create_dataset('bboxes', data=detection_output.bboxes)
-            group.create_dataset('features_pstr', data=detection_output.features_pstr)
+            group.create_dataset(
+                'features_pstr', data=detection_output.features_pstr)
 
-def import_from_hdf5(h5_file: Path, frame_folder: Path) -> Dict[Path, DetectionOutput]:
+
+def import_detection_output_from_hdf5(h5_file: Path, frame_folder: Path) -> Dict[Path, DetectionOutput]:
     """Generate a map between the frame file and their DetectionOutput from PSTR
 
     Args:
@@ -65,9 +68,9 @@ def get_detector_outputs_by_path(model: PSTR) -> Dict[Path, DetectionOutput]:
 
     return {
         path: DetectionOutput(
-            scores=result[:,4],
-            bboxes=result[:,:4],
-            features_pstr=result[:,5:],
+            scores=result[:, 4],
+            bboxes=result[:, :4],
+            features_pstr=result[:, 5:],
         )
         for path, result in results_by_path.items()
     }

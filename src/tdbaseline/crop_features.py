@@ -12,6 +12,7 @@ import h5py
 
 from .models.clip import CLIP, IMAGE_SIZE
 from .data_struct import DetectionOutput
+from .utils import extract_int_from_str
 
 
 FRAME_BATCH_SIZE = 3
@@ -129,20 +130,27 @@ def compute_bboxes_clip_features_from_detections(
     return frame_file_to_bboxes_clip_features
 
 
-def _extract_frame_id_from_filename(filename: str) -> int:
-    return int(''.join(c for c in filename if c.isdigit()))
-
-
 def export_bboxes_clip_features_to_hdf5(
-    frame_name_to_bboxes_clip_features: Dict[Path, np.ndarray],
+    frame_file_to_bboxes_clip_features: Dict[Path, np.ndarray],
     output_h5: Path,
 ) -> None:
     if output_h5.exists():
         output_h5.unlink()
 
     with h5py.File(output_h5, 'w') as f:
-        for frame_file, features in frame_name_to_bboxes_clip_features.items():
-            group = f.create_group(
-                _extract_frame_id_from_filename(frame_file.name))
+        for frame_file, features in frame_file_to_bboxes_clip_features.items():
+            group = f.create_group(frame_file.name)
 
             group.create_dataset('features', data=features)
+
+
+def import_bboxes_clip_features_from_hdf5(
+    h5_file: Path,
+):
+    with h5py.File(h5_file, 'r') as hd5_file:
+        frame_id_to_bboxes_clip_features = {
+            extract_int_from_str(file_name): dataset['features'][...]
+            for file_name, dataset in hd5_file.items()
+        }
+
+    return frame_id_to_bboxes_clip_features

@@ -6,12 +6,14 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from ..cuhk_sysu_pedes import import_test_annotations
+from ..cuhk_sysu_pedes import import_test_annotations, FRAME_FOLDER
 from ..captions_features import import_captions_output_from_hdf5
-from ..data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, CaptionsOutput, Gallery
-from .clip_features import import_frame_output_from_hdf5
+from ..data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, DetectionOutput, Gallery
+from ..crop_features import import_bboxes_clip_features_from_hdf5
+from ..utils import gt_bboxes_from_annotations, extract_int_from_str
+from ..pstr_output import import_detection_output_from_hdf5
 from .compute_similarities import ComputeSimilarities
-from ..utils import gt_bboxes_from_annotations
+
 
 GALLERY_SIZE = 100
 SCORE_THRESHOLD = .25
@@ -30,9 +32,15 @@ def _get_frame_output_from_h5(h5_file: h5py.File, frame_id: int) -> FrameOutput:
 
 def _load_samples(
     annotations: pd.DataFrame,
-    frame_id_to_frame_output: Dict[int, FrameOutput],
+    frame_file_to_detection_output: Dict[Path, DetectionOutput],
+    frame_id_to_bboxes_clip_features: Dict[int, np.ndarray],
     crop_index_to_captions_output: Dict[CropIndex, np.ndarray]
 ) -> Generator[Sample, None, None]:
+    frame_id_to_detection_output = {
+        extract_int_from_str(frame_file.name): detection_output
+        for frame_file, detection_output in frame_file_to_detection_output.items()
+    }
+
     for _, annotation_sample in annotations.groupby("person_id"):
         sample_gt_bboxes = gt_bboxes_from_annotations(annotation_sample)
 
@@ -40,24 +48,31 @@ def _load_samples(
             *annotation_sample.query("type == 'query'").index[0])
         query = Query(
             query_index.frame_id,
-            frame_id_to_frame_output[query_index.frame_id],
+            FrameOutput(
+                frame_id_to_detection_output[query_index.frame_id].scores,
+                frame_id_to_detection_output[query_index.frame_id].bboxes,
+                frame_id_to_bboxes_clip_features[query_index.frame_id],
+                frame_id_to_detection_output[query_index.frame_id].features_pstr,
+            ),
             crop_index_to_captions_output[query_index],
             sample_gt_bboxes[query_index]
         )
 
-        gallery_indexes = [
-            CropIndex(person_id, frame_id)
-            for person_id, frame_id in annotation_sample.query("type == 'gallery'").index
-        ]
+        gallery_annotations = annotation_sample.query("type == 'gallery'")
         gallery = [
             GalleryFrame(
-                frame_index.frame_id,
-                frame_id_to_frame_output[frame_index.frame_id],
-                sample_gt_bboxes[frame_index]
-                if frame_index in sample_gt_bboxes.keys()
+                frame_id,
+                FrameOutput(
+                    frame_id_to_detection_output[frame_id].scores,
+                    frame_id_to_detection_output[frame_id].bboxes,
+                    frame_id_to_bboxes_clip_features[frame_id],
+                    frame_id_to_detection_output[frame_id].features_pstr,
+                ),
+                sample_gt_bboxes[(person_id, frame_id)]
+                if (person_id, frame_id) in sample_gt_bboxes.keys()
                 else None
             )
-            for frame_index in gallery_indexes
+            for person_id, frame_id in gallery_annotations.index
         ]
 
         yield Sample(query_index.person_id, query, gallery)
@@ -296,22 +311,23 @@ def _evaluate_one_sample(
 
 def import_data(
     h5_captions_output_file: Optional[Path] = None,
-    h5_frame_output_file: Optional[Path] = None,
+    h5_detection_output: Optional[Path] = None,
+    h5_bboxes_clip_features: Optional[Path] = None,
 ) -> Generator[Sample, None, None]:
     annotations = import_test_annotations()
     crop_index_to_captions_output = (
-        import_captions_output_from_hdf5(h5_captions_output_file)
-        if h5_captions_output_file
-        else import_captions_output_from_hdf5()
-    )
-    frame_id_to_frame_output = (
-        import_frame_output_from_hdf5(h5_frame_output_file)
-        if h5_frame_output_file
-        else import_frame_output_from_hdf5()
-    )
+        import_captions_output_from_hdf5(h5_captions_output_file))
+    frame_file_to_detection_output = (
+        import_detection_output_from_hdf5(h5_detection_output, FRAME_FOLDER))
+    frame_id_to_bboxes_clip_features = (
+        import_bboxes_clip_features_from_hdf5(h5_bboxes_clip_features))
 
     return _load_samples(
-        annotations, frame_id_to_frame_output, crop_index_to_captions_output)
+        annotations,
+        frame_file_to_detection_output,
+        frame_id_to_bboxes_clip_features,
+        crop_index_to_captions_output
+    )
 
 
 def compute_mean_average_precision(
