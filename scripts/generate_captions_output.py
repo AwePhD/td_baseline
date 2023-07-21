@@ -8,7 +8,7 @@ def main():
     model = load_clip().eval().cuda()
     annotations = import_test_annotations()
 
-    h5_output_file = Path('outputs/crop_index_to_captions_output')
+    h5_output_file = Path('outputs/crop_index_to_captions_output.h5')
     generate_captions_output_to_hdf5(annotations, model, h5_output_file)
 
 

@@ -51,8 +51,8 @@ def _load_samples(
             FrameOutput(
                 frame_id_to_detection_output[query_index.frame_id].scores,
                 frame_id_to_detection_output[query_index.frame_id].bboxes,
-                frame_id_to_bboxes_clip_features[query_index.frame_id],
                 frame_id_to_detection_output[query_index.frame_id].features_pstr,
+                frame_id_to_bboxes_clip_features[query_index.frame_id],
             ),
             crop_index_to_captions_output[query_index],
             sample_gt_bboxes[query_index]
@@ -65,8 +65,8 @@ def _load_samples(
                 FrameOutput(
                     frame_id_to_detection_output[frame_id].scores,
                     frame_id_to_detection_output[frame_id].bboxes,
-                    frame_id_to_bboxes_clip_features[frame_id],
                     frame_id_to_detection_output[frame_id].features_pstr,
+                    frame_id_to_bboxes_clip_features[frame_id],
                 ),
                 sample_gt_bboxes[(person_id, frame_id)]
                 if (person_id, frame_id) in sample_gt_bboxes.keys()
@@ -310,9 +310,9 @@ def _evaluate_one_sample(
 
 
 def import_data(
-    h5_captions_output_file: Optional[Path] = None,
-    h5_detection_output: Optional[Path] = None,
-    h5_bboxes_clip_features: Optional[Path] = None,
+    h5_captions_output_file: Path = None,
+    h5_detection_output: Path = None,
+    h5_bboxes_clip_features: Path = None,
 ) -> Generator[Sample, None, None]:
     annotations = import_test_annotations()
     crop_index_to_captions_output = (

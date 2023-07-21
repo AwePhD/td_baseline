@@ -8,7 +8,7 @@ def main():
 
     crop_index_to_features = from_crops_files(crops_folder)
 
-    h5_file = Path('.', 'outputs', 'crop_index_to_clip_features_files')
+    h5_file = Path('./outputs/crop_index_to_crop_features_from_files.h5')
     export_to_hdf5(crop_index_to_features, h5_file)
 
 
