@@ -5,14 +5,15 @@ import h5py
 
 from .models.pstr import PSTR
 from .data_struct import DetectionOutput
+from .utils import confirm_generation
 
 H5_FILENAME = "filename_to_detection.h5"
 H5_FILE = Path.cwd() / "outputs" / H5_FILENAME
 
 
-def export_detection_output_to_hdf5(
+def _export_detection_output_to_hdf5(
     frame_file_to_detection: Dict[Path, DetectionOutput],
-    file: Path
+    h5_file: Path
 ) -> None:
     """Export PSTR outputs to a h5 file with a frame filename group and datasets
     scores, bboxes, features_pstr.
@@ -21,7 +22,7 @@ def export_detection_output_to_hdf5(
         frame_file_to_detection (Dict[Path, DetectionOutput]): PSTR outputs mapped to frame file
         file (Path): path of h5 file to export
     """
-    with h5py.File(file, 'w') as f:
+    with h5py.File(h5_file, 'w') as f:
         for frame_file, detection_output in frame_file_to_detection.items():
             group = f.create_group(frame_file.name)
 
@@ -56,7 +57,18 @@ def import_detection_output_from_hdf5(
     return frame_path_to_detections
 
 
-def get_detector_outputs_by_path(model: PSTR) -> Dict[Path, DetectionOutput]:
+def generate_detection_output_to_hdf5(
+    model: PSTR,
+    h5_file: Path,
+) -> None:
+    if not confirm_generation(h5_file):
+        return
+
+    frame_file_to_detection_output = _get_detection_output(model)
+    _export_detection_output_to_hdf5(frame_file_to_detection_output, h5_file)
+
+
+def _get_detection_output(model: PSTR) -> Dict[Path, DetectionOutput]:
     """PSTR model computes the output of the list of frames loaded into it and outputs
     them in a dict that maps every file to their outputs.
 

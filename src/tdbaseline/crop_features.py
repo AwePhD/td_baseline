@@ -4,15 +4,17 @@ import numpy as np
 import torch
 import torchvision.transforms as T
 
+from irra.model.clip_model import CLIP
 from torch.utils.data import DataLoader
 from PIL import Image
 from PIL.Image import Image as ImageType
 from tqdm import tqdm
 import h5py
 
-from .models.clip import CLIP, IMAGE_SIZE
+from .models.clip import load_clip, IMAGE_SIZE
 from .data_struct import DetectionOutput
-from .utils import extract_int_from_str
+from .utils import extract_int_from_str, confirm_generation
+from .pstr_output import import_detection_output_from_hdf5
 
 
 FRAME_BATCH_SIZE = 3
@@ -69,9 +71,9 @@ def _collate_frames_dataloader(
     return batch_paths, batch_bboxes
 
 
-def _compute_clip_features_from_one_batch_bboxes(
+def _get_clip_features_from_one_batch_bboxes(
     model: CLIP,
-    frame_files: Path,
+    frame_files: List[Path],
     frames_bboxes: List[np.ndarray],
 ) -> Dict[Path, np.ndarray]:
     frames = [Image.open(str(frame_file)) for frame_file in frame_files]
@@ -105,7 +107,7 @@ def _compute_clip_features_from_one_batch_bboxes(
     }
 
 
-def compute_bboxes_clip_features_from_detections(
+def _get_bboxes_clip_features_from_detections(
     model: CLIP,
     frame_file_to_detection_output: Dict[Path, DetectionOutput],
     batch_size: int = FRAME_BATCH_SIZE,
@@ -123,14 +125,26 @@ def compute_bboxes_clip_features_from_detections(
     frame_file_to_bboxes_clip_features: Dict[Path, np.ndarray] = {}
     for frame_files, bboxes in tqdm(frames_dataloader):
         frame_file_to_bboxes_clip_features.update(
-            _compute_clip_features_from_one_batch_bboxes(
+            _get_clip_features_from_one_batch_bboxes(
                 model, frame_files, bboxes,)
         )
 
     return frame_file_to_bboxes_clip_features
 
 
-def export_bboxes_clip_features_to_hdf5(
+def import_bboxes_clip_features_from_hdf5(
+    h5_file: Path,
+):
+    with h5py.File(h5_file, 'r') as hd5_file:
+        frame_id_to_bboxes_clip_features = {
+            extract_int_from_str(file_name): dataset['features'][...]
+            for file_name, dataset in hd5_file.items()
+        }
+
+    return frame_id_to_bboxes_clip_features
+
+
+def _export_bboxes_clip_features_to_hdf5(
     frame_file_to_bboxes_clip_features: Dict[Path, np.ndarray],
     output_h5: Path,
 ) -> None:
@@ -144,13 +158,26 @@ def export_bboxes_clip_features_to_hdf5(
             group.create_dataset('features', data=features)
 
 
-def import_bboxes_clip_features_from_hdf5(
-    h5_file: Path,
-):
-    with h5py.File(h5_file, 'r') as hd5_file:
-        frame_id_to_bboxes_clip_features = {
-            extract_int_from_str(file_name): dataset['features'][...]
-            for file_name, dataset in hd5_file.items()
-        }
+def generate_bboxes_clip_features_from_detections(
+    weight_file: Path,
+    frame_folder: Path,
+    h5_file_detection_output: Path,
+    batch_size: int,
+    num_workers: int,
+    output_h5_file: Path,
+) -> None:
+    if not confirm_generation(output_h5_file):
+        return
 
-    return frame_id_to_bboxes_clip_features
+    model = load_clip(weight_file)
+    frame_file_to_detection_output = import_detection_output_from_hdf5(
+        h5_file_detection_output, frame_folder)
+    frame_id_to_bboxes_clip_features = _get_bboxes_clip_features_from_detections(
+        model,
+        frame_file_to_detection_output,
+        batch_size,
+        num_workers,
+    )
+
+    _export_bboxes_clip_features_to_hdf5(
+        frame_id_to_bboxes_clip_features, output_h5_file)

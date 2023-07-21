@@ -1,29 +1,25 @@
 from pathlib import Path
 
-from tdbaseline.pstr_output import import_detection_output_from_hdf5
-from tdbaseline.crop_features import (
-    compute_bboxes_clip_features_from_detections,
-    export_bboxes_clip_features_to_hdf5,
-)
-from tdbaseline.models.clip import load_clip
+from tdbaseline.crop_features import generate_bboxes_clip_features_from_detections
 
 
 def main():
-    frame_file_to_detection_output = import_detection_output_from_hdf5(
-        Path('outputs/filename_to_detection.h5'),
-        Path(Path.home() / 'data' / 'frames'),
+    model_weight = Path.home() / 'models' / 'clip_finetuned' / 'clip_finetune.pth'
+    frames_folder = Path(Path.home() / 'data' / 'frames')
+    h5_file_detection_output = Path(
+        'outputs/frame_file_to_detection_output.h5')
+    batch_size = 3
+    num_workers = 4
+    h5_output_file = Path('outputs/frame_id_to_bboxes_clip_features.h5')
+
+    generate_bboxes_clip_features_from_detections(
+        model_weight,
+        frames_folder,
+        h5_file_detection_output,
+        batch_size,
+        num_workers,
+        h5_output_file
     )
-
-    model = load_clip().eval().cuda()
-
-    frame_file_to_bboxes_clip_features = compute_bboxes_clip_features_from_detections(
-        model,
-        frame_file_to_detection_output
-    )
-
-    output_h5 = Path('outputs/frame_id_to_bboxes_clip_features')
-    export_bboxes_clip_features_to_hdf5(
-        frame_file_to_bboxes_clip_features, output_h5)
 
 
 if __name__ == "__main__":

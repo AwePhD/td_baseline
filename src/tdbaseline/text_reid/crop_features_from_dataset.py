@@ -16,6 +16,7 @@ from typing import Dict, List
 
 import h5py
 import numpy as np
+import pandas as pd
 import torch
 from PIL import Image
 from PIL.Image import Image as ImageType
@@ -25,13 +26,12 @@ from ..crop_features import (
     compute_features_from_crops,
     build_dataloader_from_crops,
 )
-from ..models.clip import load_clip, WEIGHT_FILE
+from ..models.clip import load_clip
 from ..cuhk_sysu_pedes import (
     import_test_annotations,
-    DATA_FOLDER,
     FRAME_FOLDER
 )
-from ..utils import gt_bboxes_from_annotations
+from ..utils import gt_bboxes_from_annotations, confirm_generation
 from ..data_struct import CropIndex
 
 
@@ -58,8 +58,8 @@ def _compute_clip_features_from_crops(
     return torch.cat(all_features)
 
 
-def from_crops_files(
-    crops_folder: Path, model_weight: Path = WEIGHT_FILE
+def _from_files(
+    crops_folder: Path, model: CLIP
 ) -> Dict[CropIndex, torch.Tensor]:
     """Output a map between the crop index (Person ID, Frame ID) and the crops
     CLIP features.
@@ -73,8 +73,6 @@ def from_crops_files(
         Dict[CropIndex, torch.Tensor]: All crops feature from your folder,
         can be retrieved by crop index (person ID, frame ID)
     """
-    model = load_clip(model_weight).eval().cuda()
-
     crops = [
         Image.open(crop_path)
         for crop_path in crops_folder.iterdir()
@@ -88,13 +86,7 @@ def from_crops_files(
     }
 
 
-def from_annotations(
-    data_folder: Path = DATA_FOLDER, model_weight: Path = WEIGHT_FILE
-) -> Dict[CropIndex, torch.Tensor]:
-    model = load_clip(model_weight).eval().cuda()
-
-    annotations = import_test_annotations(data_folder)
-
+def _from_annotations(annotations: pd.DataFrame, model: CLIP) -> Dict[CropIndex, torch.Tensor]:
     gt_bboxes = gt_bboxes_from_annotations(annotations)
 
     crops = [
@@ -114,7 +106,7 @@ def from_annotations(
     }
 
 
-def export_to_hdf5(
+def _export_to_hdf5(
         crop_index_to_features: Dict[CropIndex, np.ndarray], h5_file: Path):
     with h5py.File(h5_file, 'w') as f:
         for crop_index, features in crop_index_to_features.items():
@@ -122,3 +114,31 @@ def export_to_hdf5(
                 f"p{crop_index.person_id}_s{crop_index.frame_id}")
 
             group.create_dataset('features', data=features)
+
+
+def generate_crop_features_from_files(
+    crops_folder: Path,
+    model_weight: Path,
+    h5_file: Path
+) -> None:
+    if not confirm_generation(h5_file):
+        return
+
+    model = load_clip(model_weight).eval().cuda()
+
+    crop_index_to_features = _from_files(crops_folder, model)
+    _export_to_hdf5(crop_index_to_features, h5_file)
+
+
+def generate_crop_features_from_annotations(
+    model_weight: Path,
+    h5_file: Path
+) -> None:
+    if not confirm_generation(h5_file):
+        return
+
+    model = load_clip(model_weight).eval().cuda()
+    annotations = import_test_annotations()
+
+    crop_index_to_features = _from_annotations(annotations, model)
+    _export_to_hdf5(crop_index_to_features, h5_file)

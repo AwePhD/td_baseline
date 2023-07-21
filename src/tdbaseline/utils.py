@@ -8,10 +8,11 @@ import pandas as pd
 
 from .data_struct import CropIndex
 
+
 def gt_bboxes_from_annotations(annotations: pd.DataFrame) -> Dict[CropIndex, np.ndarray]:
     gt_bboxes = (
-        annotations[["bbox_x", "bbox_y","bbox_w", "bbox_h" ]]
-        [annotations.bbox_w != 0 ]
+        annotations[["bbox_x", "bbox_y", "bbox_w", "bbox_h"]]
+        [annotations.bbox_w != 0]
         .astype(np.int32)
         .copy()
     )
@@ -23,12 +24,28 @@ def gt_bboxes_from_annotations(annotations: pd.DataFrame) -> Dict[CropIndex, np.
         for person_id, frame_id in gt_bboxes.index
     }
 
+
 def extract_int_from_str(s: str) -> int:
     return int("".join(c for c in s if c.isdigit()))
 
 
-def prompt_rm_to_user(h5_file: Path) -> bool:
+def confirm_generation(h5_file: Path) -> bool:
+    """Confirm the generation of the file, check if file already exist.
+
+    If it returns true -> generate the file
+                 false -> does not generate the file (user do not want to
+                 overwrite)
+    """
+    if h5_file.exists():
+        if not _prompt_rm_to_user(h5_file):
+            return False
+
+        h5_file.unlink()
+    return True
+
+
+def _prompt_rm_to_user(h5_file: Path) -> bool:
+    """Ask to user if the file should be deleted"""
     print(f"{h5_file.name} already exists.")
     user_input = input("Delete the file (y/N): ")
     return user_input.lower() in ['y', 'yes']
-

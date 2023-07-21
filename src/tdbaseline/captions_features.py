@@ -10,10 +10,11 @@ from torch.utils.data import DataLoader
 from .data_struct import FrameOutput
 from .data_struct import CaptionsOutput, CropIndex
 from .models.tokenizer import SimpleTokenizer, tokenize
-from .utils import prompt_rm_to_user, extract_int_from_str
+from .utils import extract_int_from_str, confirm_generation
 
 H5_CAPTIONS_OUTPUT_FILENAME = "filename_to_captions_output.h5"
 H5_CAPTIONS_OUTPUT_FILE = Path.cwd() / "outputs" / H5_CAPTIONS_OUTPUT_FILENAME
+
 
 def _collate_tokens_dataloader(
     batch: List[Tuple[CropIndex, Tuple[torch.Tensor, torch.Tensor]]]
@@ -45,13 +46,15 @@ def _collate_tokens_dataloader(
 
     return crop_indexes, tokens
 
+
 def _get_text_features(
     annotations: pd.DataFrame,
     model: CLIP,
     token_batch_size: int = 512
 ) -> Dict[CropIndex, CaptionsOutput]:
     annotations_query = annotations.query("type == 'query'")
-    captions = pd.concat([annotations_query.caption_1, annotations_query.caption_2])
+    captions = pd.concat([annotations_query.caption_1,
+                         annotations_query.caption_2])
 
     # Tokenize captions
     tokenizer = SimpleTokenizer()
@@ -85,7 +88,8 @@ def _get_text_features(
             tokens_features = model.encode_text(batch_tokens.cuda()).cpu()
         # Prends le token de <END_OF_SEQUENCE> => CLASS TOKEN
         features_text.extend(
-            tokens_features[torch.arange(tokens_features.shape[0]), batch_tokens.argmax(dim=-1)]
+            tokens_features[torch.arange(
+                tokens_features.shape[0]), batch_tokens.argmax(dim=-1)]
             .float()
             .numpy()
         )
@@ -97,28 +101,29 @@ def _get_text_features(
         for i in range(0, n_samples, 2)
     }
 
+
 def generate_captions_output_to_hdf5(
     annotations: pd.DataFrame,
     model: CLIP,
     h5_file: Path = H5_CAPTIONS_OUTPUT_FILE,
 ) -> None:
-    if h5_file.exists():
-        if not prompt_rm_to_user(h5_file):
-            return
-        else:
-            h5_file.unlink()
+    if not confirm_generation(h5_file):
+        return
 
     crop_index_to_captions_outputs = _get_text_features(annotations, model)
-    export_caption_features_to_hdf5(crop_index_to_captions_outputs, h5_file)
+    _export_caption_features_to_hdf5(crop_index_to_captions_outputs, h5_file)
 
 
-def export_caption_features_to_hdf5(
+def _export_caption_features_to_hdf5(
     crop_index_to_captions_output: Dict[CropIndex, CaptionsOutput],
     h5_file: Path
 ) -> None:
+
     with h5py.File(h5_file, 'w') as f:
+
         for crop_index, captions_output in crop_index_to_captions_output.items():
-            group = f.create_group(f"p{crop_index.person_id}_s{crop_index.frame_id}")
+            group = f.create_group(
+                f"p{crop_index.person_id}_s{crop_index.frame_id}")
 
             group.create_dataset('caption_1', data=captions_output.caption_1)
             group.create_dataset('caption_2', data=captions_output.caption_2)
@@ -136,7 +141,7 @@ def import_captions_output_from_hdf5(
                 CaptionsOutput(
                     captions_output[CaptionsOutput._fields[0]][...],
                     captions_output[CaptionsOutput._fields[1]][...],
-                )
+            )
             for crop_index_name, captions_output in hd5_file.items()
         }
 

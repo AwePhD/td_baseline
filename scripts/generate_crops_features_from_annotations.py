@@ -1,13 +1,12 @@
 from pathlib import Path
-from tdbaseline.text_reid.crop_features_from_dataset import (
-    from_annotations,  export_to_hdf5)
+from tdbaseline.text_reid.crop_features_from_dataset import generate_crop_features_from_annotations
 
 
 def main():
-    crop_index_to_features = from_annotations()
-
+    model_weight = Path.home() / 'models' / 'clip_finetuned' / 'clip_finetune.pth'
     h5_file = Path('./outputs/crop_index_to_crop_features_from_annotations.h5')
-    export_to_hdf5(crop_index_to_features, h5_file)
+
+    generate_crop_features_from_annotations(model_weight, h5_file)
 
 
 if __name__ == "__main__":
