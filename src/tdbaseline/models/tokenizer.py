@@ -11,8 +11,6 @@ import torch
 import ftfy
 import regex as re
 
-BPE_FILE = Path.home() / "models"/ "clip_finetuned" / "bpe_simple_vocab_16e6.txt.gz"
-
 
 @lru_cache()
 def bytes_to_unicode():
@@ -63,7 +61,7 @@ def whitespace_clean(text):
 
 
 class SimpleTokenizer(object):
-    def __init__(self, bpe_path: Path = BPE_FILE):
+    def __init__(self, bpe_path: Path):
         self.byte_encoder = bytes_to_unicode()
         self.byte_decoder = {v: k for k, v in self.byte_encoder.items()}
         merges = gzip.open(bpe_path).read().decode("utf-8").split('\n')
@@ -145,6 +143,7 @@ class SimpleTokenizer(object):
             'utf-8', errors="replace").replace('</w>', ' ')
         return text
 
+
 def tokenize(caption: str, tokenizer: SimpleTokenizer, text_length=77, truncate=True) -> torch.LongTensor:
     sot_token = tokenizer.encoder["<|startoftext|>"]
     eot_token = tokenizer.encoder["<|endoftext|>"]
@@ -159,7 +158,7 @@ def tokenize(caption: str, tokenizer: SimpleTokenizer, text_length=77, truncate=
             raise RuntimeError(
                 f"Input {caption} is too long for context length {text_length}"
             )
-    result[:len(tokens)] = torch.tensor(tokens) #pylint: disable=not-callable
+    result[:len(tokens)] = torch.tensor(tokens)  # pylint: disable=not-callable
     return result
 
 

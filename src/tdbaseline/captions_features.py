@@ -7,13 +7,11 @@ from irra.model.clip_model import CLIP
 import torch
 from torch.utils.data import DataLoader
 
-from .data_struct import FrameOutput
-from .data_struct import CaptionsOutput, CropIndex
+from .data_struct import CaptionsOutput, CropIndex, FrameOutput
+from .cuhk_sysu_pedes import import_test_annotations
+from .models.clip import load_clip
 from .models.tokenizer import SimpleTokenizer, tokenize
-from .utils import extract_int_from_str, confirm_generation
-
-H5_CAPTIONS_OUTPUT_FILENAME = "filename_to_captions_output.h5"
-H5_CAPTIONS_OUTPUT_FILE = Path.cwd() / "outputs" / H5_CAPTIONS_OUTPUT_FILENAME
+from .utils import crop_index_from_filename, confirm_generation
 
 
 def _collate_tokens_dataloader(
@@ -50,14 +48,15 @@ def _collate_tokens_dataloader(
 def _get_text_features(
     annotations: pd.DataFrame,
     model: CLIP,
-    token_batch_size: int = 512
+    token_batch_size: int,
+    vocab_file: Path,
 ) -> Dict[CropIndex, CaptionsOutput]:
     annotations_query = annotations.query("type == 'query'")
     captions = pd.concat([annotations_query.caption_1,
                          annotations_query.caption_2])
 
     # Tokenize captions
-    tokenizer = SimpleTokenizer()
+    tokenizer = SimpleTokenizer(vocab_file)
     tokens = {
         CropIndex(*crop_index): (
             tokenize(captions_pair.iloc[0], tokenizer),
@@ -103,14 +102,24 @@ def _get_text_features(
 
 
 def generate_captions_output_to_hdf5(
-    annotations: pd.DataFrame,
-    model: CLIP,
-    h5_file: Path = H5_CAPTIONS_OUTPUT_FILE,
+    weight_file: Path,
+    data_folder: Path,
+    token_batch_size: int,
+    vocab_file: Path,
+    h5_file: Path,
 ) -> None:
     if not confirm_generation(h5_file):
         return
 
-    crop_index_to_captions_outputs = _get_text_features(annotations, model)
+    annotations = import_test_annotations(data_folder)
+    model = load_clip(weight_file).eval().cuda()
+
+    crop_index_to_captions_outputs = _get_text_features(
+        annotations,
+        model,
+        token_batch_size,
+        vocab_file
+    )
     _export_caption_features_to_hdf5(crop_index_to_captions_outputs, h5_file)
 
 
@@ -129,20 +138,15 @@ def _export_caption_features_to_hdf5(
             group.create_dataset('caption_2', data=captions_output.caption_2)
 
 
-def import_captions_output_from_hdf5(
-    h5_file: Path = H5_CAPTIONS_OUTPUT_FILE
-) -> Dict[CropIndex, FrameOutput]:
+def import_captions_output_from_hdf5(h5_file: Path) -> Dict[CropIndex, FrameOutput]:
     with h5py.File(h5_file, 'r') as hd5_file:
         crop_index_to_captions_output = {
-            CropIndex(
-                extract_int_from_str(crop_index_name.split("_")[0]),
-                extract_int_from_str(crop_index_name.split("_")[1])
-            ):
+            crop_index_from_filename(filename):
                 CaptionsOutput(
-                    captions_output[CaptionsOutput._fields[0]][...],
-                    captions_output[CaptionsOutput._fields[1]][...],
+                    dataset[CaptionsOutput._fields[0]][...],
+                    dataset[CaptionsOutput._fields[1]][...],
             )
-            for crop_index_name, captions_output in hd5_file.items()
+            for filename, dataset in hd5_file.items()
         }
 
     return crop_index_to_captions_output

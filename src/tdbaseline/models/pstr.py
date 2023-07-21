@@ -10,8 +10,6 @@ from mmcv.parallel import MMDataParallel
 from mmdet.models import build_detector
 from mmdet.datasets import build_dataloader, build_dataset
 
-CONFIG_FILE = str(Path.cwd() / "configs" / "pstr" / "tdbaseline.py")
-WEIGHT_FILE = Path().home() / "models" / "pstr_resnet_cuhk" / "pstr_r50_cuhk.pth"
 
 class PSTR:
     """
@@ -20,7 +18,8 @@ class PSTR:
     - It is initialized by a config file and the weight of the model.
     - It can run infer that outputs PSTR result for the whole dataset.
     """
-    def _load_config(self, config_file: Path = CONFIG_FILE) -> mmcv.Config:
+
+    def _load_config(self, config_file: Path) -> mmcv.Config:
         cfg = mmcv.Config.fromfile(config_file)
         cfg.model.pretrained = None
         cfg.data.test.test_mode = True
@@ -41,18 +40,15 @@ class PSTR:
 
     def _load_model(self, weight_file: Path) -> MMDataParallel:
         # Get model and weights with boilerplate
-        model = build_detector(self.config.model, test_cfg=self.config.get('test_cfg')).eval()
+        model = build_detector(
+            self.config.model, test_cfg=self.config.get('test_cfg')).eval()
         load_checkpoint(model, str(weight_file), map_location='cpu')
 
         model.CLASSES = self.dataloader.dataset.CLASSES
 
         return MMDataParallel(model, device_ids=[0])
 
-    def __init__(
-        self,
-        config_file: Path = CONFIG_FILE,
-        weight_file: Path = WEIGHT_FILE,
-    ) -> None:
+    def __init__(self, config_file: Path, weight_file: Path) -> None:
         self.config = self._load_config(config_file)
         self.dataloader = self._load_dataloader()
         self.model = self._load_model(weight_file)

@@ -17,9 +17,6 @@ from .utils import extract_int_from_str, confirm_generation
 from .pstr_output import import_detection_output_from_hdf5
 
 
-FRAME_BATCH_SIZE = 3
-CROPS_BATCH_SIZE = 400
-NUM_WORKERS = 4
 MEAN = [0.48145466, 0.4578275, 0.40821073]
 STD = [0.26862954, 0.26130258, 0.27577711]
 
@@ -37,8 +34,8 @@ def _preprocess_crops(crops: List[ImageType]) -> torch.Tensor:
 
 def build_dataloader_from_crops(
     crops: List[ImageType],
-    batch_size: int = CROPS_BATCH_SIZE,
-    num_workers: int = NUM_WORKERS,
+    batch_size: int,
+    num_workers: int,
 ) -> DataLoader:
     # crop method perfoms an integer approximation
     crops_preprocessed = _preprocess_crops(crops)
@@ -110,8 +107,8 @@ def _get_clip_features_from_one_batch_bboxes(
 def _get_bboxes_clip_features_from_detections(
     model: CLIP,
     frame_file_to_detection_output: Dict[Path, DetectionOutput],
-    batch_size: int = FRAME_BATCH_SIZE,
-    num_workers: int = NUM_WORKERS,
+    batch_size: int,
+    num_workers: int,
 ) -> Dict[Path, np.ndarray]:
     frames_dataloader = DataLoader(
         list(frame_file_to_detection_output.items()),
@@ -169,7 +166,7 @@ def generate_bboxes_clip_features_from_detections(
     if not confirm_generation(output_h5_file):
         return
 
-    model = load_clip(weight_file)
+    model = load_clip(weight_file).eval().cuda()
     frame_file_to_detection_output = import_detection_output_from_hdf5(
         h5_file_detection_output, frame_folder)
     frame_id_to_bboxes_clip_features = _get_bboxes_clip_features_from_detections(

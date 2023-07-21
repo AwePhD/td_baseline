@@ -2,11 +2,11 @@ from pathlib import Path
 from typing import List, Generator, Dict, Optional, Tuple, Iterable
 
 from tqdm import tqdm
-import h5py
 import numpy as np
 import pandas as pd
 
-from ..cuhk_sysu_pedes import import_test_annotations, FRAME_FOLDER
+from ..metrics import compute_average_precision_with_recall_penality
+from ..cuhk_sysu_pedes import import_test_annotations
 from ..captions_features import import_captions_output_from_hdf5
 from ..data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, DetectionOutput, Gallery
 from ..crop_features import import_bboxes_clip_features_from_hdf5
@@ -16,18 +16,6 @@ from .compute_similarities import ComputeSimilarities
 
 
 GALLERY_SIZE = 100
-SCORE_THRESHOLD = .25
-#
-
-
-def _get_frame_output_from_h5(h5_file: h5py.File, frame_id: int) -> FrameOutput:
-    frame_id_key = f"s{frame_id}.jpg"
-    return FrameOutput(
-        h5_file[frame_id_key][FrameOutput._fields[0]][...],
-        h5_file[frame_id_key][FrameOutput._fields[1]][...],
-        h5_file[frame_id_key][FrameOutput._fields[2]][...],
-        h5_file[frame_id_key][FrameOutput._fields[3]][...],
-    )
 
 
 def _load_samples(
@@ -216,33 +204,6 @@ def _compute_labels_scores_for_one_gallery_frame(
     return labels, ranked_similarities
 
 
-def _compute_average_precision(
-    labels: np.ndarray,
-    scores: np.ndarray,
-    count_gt: int,
-) -> float:
-    """
-    Namely, we compute the average precision over recall values i.e cut-off for each TPs.
-    There is a penality if the co
-    """
-    # No TP -> AP = 0
-    count_tp = labels.sum()
-    if count_tp == 0:
-        return count_tp
-
-    indices_by_scores = scores.argsort()[::-1]
-    labels_ranked = labels[indices_by_scores]
-
-    tps = labels_ranked.cumsum(0)
-
-    precisions = (tps / np.arange(1, len(tps) + 1))
-    precisions_at_delta_recall = precisions[labels_ranked]
-    mean_average_precision = precisions_at_delta_recall.sum() / count_tp
-
-    recall_rate_penality = count_tp / count_gt
-    return mean_average_precision * recall_rate_penality
-
-
 def _evaluate_one_query_for_one_sample(
     gallery: Gallery,
     query_text_features: np.ndarray,
@@ -281,7 +242,7 @@ def _evaluate_one_query_for_one_sample(
 
     count_gt = sum(frame.gt_bbox is not None for frame in gallery)
 
-    return _compute_average_precision(labels, scores, count_gt)
+    return compute_average_precision_with_recall_penality(labels, scores, count_gt)
 
 
 def _evaluate_one_sample(
@@ -310,15 +271,17 @@ def _evaluate_one_sample(
 
 
 def import_data(
+    data_folder: Path,
+    frames_folder: Path,
     h5_captions_output_file: Path = None,
     h5_detection_output: Path = None,
     h5_bboxes_clip_features: Path = None,
 ) -> Generator[Sample, None, None]:
-    annotations = import_test_annotations()
+    annotations = import_test_annotations(data_folder)
     crop_index_to_captions_output = (
         import_captions_output_from_hdf5(h5_captions_output_file))
     frame_file_to_detection_output = (
-        import_detection_output_from_hdf5(h5_detection_output, FRAME_FOLDER))
+        import_detection_output_from_hdf5(h5_detection_output, frames_folder))
     frame_id_to_bboxes_clip_features = (
         import_bboxes_clip_features_from_hdf5(h5_bboxes_clip_features))
 
@@ -333,7 +296,7 @@ def import_data(
 def compute_mean_average_precision(
     samples: Iterable[Sample],
     compute_similarities: ComputeSimilarities,
-    threshold: float = SCORE_THRESHOLD,
+    threshold: float,
 ) -> float:
     average_precisions: List[float] = []
 

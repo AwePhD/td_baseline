@@ -1,15 +1,19 @@
-from tdbaseline.cuhk_sysu_pedes import import_test_annotations
-from tdbaseline.models.clip import load_clip
 from pathlib import Path
+
+from tdbaseline.config import build_path, get_config
 from tdbaseline.captions_features import generate_captions_output_to_hdf5
 
 
 def main():
-    model = load_clip().eval().cuda()
-    annotations = import_test_annotations()
+    config = get_config(Path('./config.yaml'))
 
-    h5_output_file = Path('outputs/crop_index_to_captions_output.h5')
-    generate_captions_output_to_hdf5(annotations, model, h5_output_file)
+    generate_captions_output_to_hdf5(
+        build_path(config['models']['clip']['weight_path']),
+        build_path(config['data']['root_folder']),
+        config['process']['tokens_batch_size'],
+        build_path(config['models']['clip']['vocab_path']),
+        build_path(config['h5_files']['captions_output'])
+    )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 """Various useful functions"""
-
+import re
 from typing import Dict
 from pathlib import Path
 
@@ -29,6 +29,16 @@ def extract_int_from_str(s: str) -> int:
     return int("".join(c for c in s if c.isdigit()))
 
 
+def crop_index_from_filename(filename: str) -> CropIndex:
+    extract_consecutive_numbers = re.compile(r'[\d]+')
+
+    crop_index = tuple(
+        int(number)
+        for number in extract_consecutive_numbers.findall(filename)
+    )
+    return CropIndex(*crop_index)
+
+
 def confirm_generation(h5_file: Path) -> bool:
     """Confirm the generation of the file, check if file already exist.
 
@@ -41,11 +51,16 @@ def confirm_generation(h5_file: Path) -> bool:
             return False
 
         h5_file.unlink()
+
     return True
 
 
 def _prompt_rm_to_user(h5_file: Path) -> bool:
-    """Ask to user if the file should be deleted"""
+    """Ask to user if the file should be deleted
+
+    Return True -> it should be deleted
+          False -> it should NOT to be deleted
+    """
     print(f"{h5_file.name} already exists.")
     user_input = input("Delete the file (y/N): ")
     return user_input.lower() in ['y', 'yes']

@@ -3,12 +3,11 @@ from pathlib import Path
 import torch
 from irra.model.clip_model import CLIP, build_CLIP_from_openai_pretrained
 
-WEIGHT_FILE = Path.home() / "models" / "clip_finetuned" / "clip_finetune.pth"
 STRIDE_SIZE = 16
 IMAGE_SIZE = (384, 128)
 
 
-def load_clip(weight_file: Path = WEIGHT_FILE) -> CLIP:
+def load_clip(weight_file: Path) -> CLIP:
     # Filter "base_mode." in front of params key.
     state_dict = {
         ".".join(key.split('.')[1:]): parameters

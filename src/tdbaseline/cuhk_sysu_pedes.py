@@ -3,8 +3,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-DATA_FOLDER = Path.home() / "data"
-FRAME_FOLDER = DATA_FOLDER / "frames"
+ANNOTATIONS_TRAIN_FILENAME = "annotations_train.csv"
+ANNOTATIONS_TEST_FILENAME = "annotations_test.csv"
 ANNOTATIONS_DATAFRAME = {
     # Name of the index for person IDs and frame IDs
     "INDEX": {
@@ -58,7 +58,7 @@ def _read_annotations_csv(
     return train_annotations, test_annotations
 
 
-def import_test_annotations(data_folder: Path = DATA_FOLDER) -> pd.DataFrame:
+def import_test_annotations(data_folder: Path) -> pd.DataFrame:
     """Import test annotations of the CUHK-SYSU-PEDES to a DataFrame.
 
     Args:
@@ -68,9 +68,8 @@ def import_test_annotations(data_folder: Path = DATA_FOLDER) -> pd.DataFrame:
         pd.DataFrame: Test annotations of the dataset.
     """
     _, annotations = _read_annotations_csv(
-        data_folder / "annotations_train.csv",
-        data_folder / "annotations_test.csv",
+        data_folder / ANNOTATIONS_TRAIN_FILENAME,
+        data_folder / ANNOTATIONS_TEST_FILENAME,
     )
 
     return annotations
-

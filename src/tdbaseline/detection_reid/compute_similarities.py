@@ -3,21 +3,22 @@ from typing import Callable, Tuple
 import numpy as np
 from numpy.linalg import norm
 
-AVERAGE_WEIGHT = .5
-
 # eval script only works with functions with those parameters
 # if you wish to build a smarter similarities computation, then make
 # a builder method that outputs what you want. See build_baseline_similarities
-ComputeSimilarities = Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray]
+ComputeSimilarities = Callable[[
+    np.ndarray, np.ndarray, np.ndarray], np.ndarray]
 
 PSTR_FEATURES_LENTGH = 3 * 256
 CLIP_FEATURES_LENTGH = 512
+
 
 def normalize(features: np.ndarray) -> np.ndarray:
     """
     Normalize the 2D vectors (n_features, features_dim)
     """
     return features / norm(features, axis=1).reshape(-1, 1)
+
 
 def compute_similarities(
     query_features: np.ndarray,
@@ -28,6 +29,7 @@ def compute_similarities(
         normalize(query_features.reshape(1, -1)),
         normalize(crops_features),
     ).ravel()
+
 
 def baseline_similarities(
     query_crop_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
@@ -47,10 +49,13 @@ def baseline_similarities(
     if weight_of_text_features == 0:
         return compute_similarities(query_crop_features, crops_features)
 
-    text_image_similarities = compute_similarities(query_text_features, crops_features)
-    image_image_similarities = compute_similarities(query_crop_features, crops_features)
+    text_image_similarities = compute_similarities(
+        query_text_features, crops_features)
+    image_image_similarities = compute_similarities(
+        query_crop_features, crops_features)
 
     return weight_of_text_features * text_image_similarities + (1 - weight_of_text_features) * image_image_similarities
+
 
 def build_baseline_similarities(weight_of_text_features: float) -> ComputeSimilarities:
     def built_baseline_similarities(*args):
@@ -61,7 +66,7 @@ def build_baseline_similarities(weight_of_text_features: float) -> ComputeSimila
 
 def pstr_similarities(
     query_crop_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
-    query_text_features: np.ndarray, # pylint: disable=unused-argument
+    query_text_features: np.ndarray,  # pylint: disable=unused-argument
     crops_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
 ) -> np.ndarray:
     # PSTR only does image similarites

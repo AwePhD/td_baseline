@@ -7,9 +7,6 @@ from .models.pstr import PSTR
 from .data_struct import DetectionOutput
 from .utils import confirm_generation
 
-H5_FILENAME = "filename_to_detection.h5"
-H5_FILE = Path.cwd() / "outputs" / H5_FILENAME
-
 
 def _export_detection_output_to_hdf5(
     frame_file_to_detection: Dict[Path, DetectionOutput],
@@ -58,11 +55,14 @@ def import_detection_output_from_hdf5(
 
 
 def generate_detection_output_to_hdf5(
-    model: PSTR,
+    config_file: Path,
+    weight_file: Path,
     h5_file: Path,
 ) -> None:
     if not confirm_generation(h5_file):
         return
+
+    model = PSTR(config_file, weight_file)
 
     frame_file_to_detection_output = _get_detection_output(model)
     _export_detection_output_to_hdf5(frame_file_to_detection_output, h5_file)
