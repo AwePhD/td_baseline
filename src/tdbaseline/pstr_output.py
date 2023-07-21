@@ -13,7 +13,7 @@ H5_FILE = Path.cwd() / "outputs" / H5_FILENAME
 def export_detection_output_to_hdf5(
     frame_file_to_detection: Dict[Path, DetectionOutput],
     file: Path
-):
+) -> None:
     """Export PSTR outputs to a h5 file with a frame filename group and datasets
     scores, bboxes, features_pstr.
 
@@ -31,7 +31,9 @@ def export_detection_output_to_hdf5(
                 'features_pstr', data=detection_output.features_pstr)
 
 
-def import_detection_output_from_hdf5(h5_file: Path, frame_folder: Path) -> Dict[Path, DetectionOutput]:
+def import_detection_output_from_hdf5(
+    h5_file: Path, frame_folder: Path
+) -> Dict[Path, DetectionOutput]:
     """Generate a map between the frame file and their DetectionOutput from PSTR
 
     Args:

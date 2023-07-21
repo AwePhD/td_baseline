@@ -1,13 +1,13 @@
 """
-Compute CLIP features from
+Compute CLIP features from different sources:
 
 - Crops files
 - GT bboxes in the annotations. TODO: show differences between the crops
 and the GT
-- Crops from PSTR detection -> already computed from clip_features
-TODO: This computation comes before the clip_features scripts, it should
-be isolated and exported in the crops_features file. Then, the clip_features
-just have to open this file to make FrameOutput
+
+ATTENTION: do not confuse this module which is related to the Text ReID task
+with the general crop_features.py module which is used for Text ReID and
+Detection ReID.
 """
 
 import re

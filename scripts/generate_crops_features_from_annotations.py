@@ -1,5 +1,5 @@
 from pathlib import Path
-from tdbaseline.text_reid.images_features import (
+from tdbaseline.text_reid.crop_features_from_dataset import (
     from_annotations,  export_to_hdf5)
 
 
