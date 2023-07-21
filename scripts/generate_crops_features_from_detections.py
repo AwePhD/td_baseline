@@ -21,7 +21,7 @@ def main():
         frame_file_to_detection_output
     )
 
-    output_h5 = Path('outputs/frame_file_to_bboxes_clip_features')
+    output_h5 = Path('outputs/frame_id_to_bboxes_clip_features')
     export_bboxes_clip_features_to_hdf5(
         frame_file_to_bboxes_clip_features, output_h5)
 

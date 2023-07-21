@@ -129,6 +129,10 @@ def compute_bboxes_clip_features_from_detections(
     return frame_file_to_bboxes_clip_features
 
 
+def _extract_frame_id_from_filename(filename: str) -> int:
+    return int(''.join(c for c in filename if c.isdigit()))
+
+
 def export_bboxes_clip_features_to_hdf5(
     frame_name_to_bboxes_clip_features: Dict[Path, np.ndarray],
     output_h5: Path,
@@ -138,6 +142,7 @@ def export_bboxes_clip_features_to_hdf5(
 
     with h5py.File(output_h5, 'w') as f:
         for frame_file, features in frame_name_to_bboxes_clip_features.items():
-            group = f.create_group(frame_file.name)
+            group = f.create_group(
+                _extract_frame_id_from_filename(frame_file.name))
 
             group.create_dataset('features', data=features)
