@@ -5,25 +5,7 @@ import pandas as pd
 
 ANNOTATIONS_TRAIN_FILENAME = "annotations_train.csv"
 ANNOTATIONS_TEST_FILENAME = "annotations_test.csv"
-ANNOTATIONS_DATAFRAME = {
-    # Name of the index for person IDs and frame IDs
-    "INDEX": {
-        "PERSON ID": "person_id",
-        "FRAME ID": "frame_id",
-    },
-    # PEDES columns
-    "PEDES COLUMNS": ["split", "caption_1", "caption_2"],
-    # SYSU columns
-    "SYSU COLUMNS": {
-        "TRAIN": ["is_hard", "bbox_x", "bbox_y", "bbox_w", "bbox_h"],
-        "TEST": ["type", "is_hard", "bbox_x", "bbox_y", "bbox_w", "bbox_h"],
-    },
-    "NAME COLUMNS": [""],
-    # In Pedes, category of the sample in the test split.
-    "TYPE VALUES": {"QUERY": "query", "GALLERY": "gallery"},
-    "SPLIT TYPE VALUES": {"TRAIN": "train", "TEST": "test"},
-}
-
+INDEX_NAMES = ["person_id", "frame_id"]
 COLUMNS_DTYPE = {
     "is_hard": bool,
     "type": "category",
@@ -42,7 +24,7 @@ def _read_annotations_csv(
 ):
     train_annotations = pd.read_csv(
         train_annotation_path,
-        index_col=tuple(ANNOTATIONS_DATAFRAME["INDEX"].values()),
+        index_col=tuple(INDEX_NAMES),
         dtype={
             column: dtype
             for column, dtype in COLUMNS_DTYPE.items()
@@ -51,7 +33,7 @@ def _read_annotations_csv(
     )
     test_annotations = pd.read_csv(
         test_annotation_path,
-        index_col=tuple(ANNOTATIONS_DATAFRAME["INDEX"].values()),
+        index_col=tuple(INDEX_NAMES),
         dtype=COLUMNS_DTYPE,
     )
 
