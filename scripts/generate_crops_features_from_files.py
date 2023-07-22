@@ -9,7 +9,7 @@ def main():
 
     generate_crop_features_from_files(
         build_path(config['models']['clip']['weight_path']),
-        build_path(config['data']['frames_folder']),
+        build_path(config['data']['crops_folder']),
         config['process']['crops_batch_size'],
         config['process']['num_workers'],
         build_path(config['h5_files']['crop_features_from_files'])

@@ -10,7 +10,6 @@ with the general crop_features.py module which is used for Text ReID and
 Detection ReID.
 """
 
-import re
 from pathlib import Path
 from typing import Dict, List
 
@@ -49,7 +48,7 @@ def _compute_clip_features_from_crops(
     for crops in crops_dataloader:
         all_features.append(compute_features_from_crops(model, crops))
 
-    return torch.cat(all_features)
+    return torch.cat(all_features).numpy()
 
 
 def _from_files(

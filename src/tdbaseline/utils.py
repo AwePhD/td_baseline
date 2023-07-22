@@ -30,12 +30,16 @@ def extract_int_from_str(s: str) -> int:
 
 
 def crop_index_from_filename(filename: str) -> CropIndex:
-    extract_consecutive_numbers = re.compile(r'[\d]+')
-
     crop_index = tuple(
-        int(number)
-        for number in extract_consecutive_numbers.findall(filename)
+        extract_int_from_str(sub_string)
+        for sub_string in filename.split('_')
     )
+    # extract_consecutive_numbers = re.compile(r'[\d]+')
+
+    # crop_index = tuple(
+    #     int(number)
+    #     for number in extract_consecutive_numbers.findall(filename)
+    # )
     return CropIndex(*crop_index)
 
 
