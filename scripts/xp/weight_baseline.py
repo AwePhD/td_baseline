@@ -12,12 +12,15 @@ import logging
 
 import numpy as np
 
+from tdbaseline.config import get_config
 from tdbaseline.detection_reid.eval import import_data, compute_mean_average_precision
 from tdbaseline.detection_reid.compute_similarities import build_baseline_similarities
 
 NUMPY_BIN_FILE = Path("outputs", "xp_weights")
 
 def main():
+    config = get_config(Path('./config.yaml'))
+
     logging.basicConfig(level=logging.DEBUG)
 
     # Create meshgrid of elements
@@ -27,14 +30,25 @@ def main():
 
     # Load data
     # !! +2GB of RAM using list
-    samples = list(import_data())
+    output_folder = Path('outputs')
+    samples = list(import_data(
+        Path(config['data']['root_folder']),
+        Path(config['data']['frames_folder']),
+        output_folder / 'crop_index_to_captions_output.h5',
+        output_folder / 'frame_file_to_detection_output.h5',
+        output_folder / 'frame_id_to_bboxes_clip_features.h5',
+    ))
 
     # Experiments
     mean_average_precisions = np.zeros_like(weights_of_text_features)
     for i, weight in enumerate(weights_of_text_features):
         baseline_similarities = build_baseline_similarities(weight)
 
-        mAP = compute_mean_average_precision(samples, baseline_similarities)
+        mAP = compute_mean_average_precision(
+            samples,
+            baseline_similarities,
+            config['eval']['detection_reid']['threshold']
+        )
         mean_average_precisions[i] = mAP
 
         logging.info("%6.2f | %5.2f", weight * 100, mAP * 100)

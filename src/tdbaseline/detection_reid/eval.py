@@ -273,9 +273,9 @@ def _evaluate_one_sample(
 def import_data(
     data_folder: Path,
     frames_folder: Path,
-    h5_captions_output_file: Path = None,
-    h5_detection_output: Path = None,
-    h5_bboxes_clip_features: Path = None,
+    h5_captions_output_file: Path,
+    h5_detection_output: Path,
+    h5_bboxes_clip_features: Path,
 ) -> Generator[Sample, None, None]:
     annotations = import_test_annotations(data_folder)
     crop_index_to_captions_output = (
