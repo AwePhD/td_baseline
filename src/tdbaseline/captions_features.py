@@ -51,18 +51,16 @@ def _get_text_features(
     token_batch_size: int,
     vocab_file: Path,
 ) -> Dict[CropIndex, CaptionsOutput]:
-    annotations_query = annotations.query("type == 'query'")
-    captions = pd.concat([annotations_query.caption_1,
-                         annotations_query.caption_2])
+    captions = annotations[['caption_1', 'caption_2']].dropna()
 
     # Tokenize captions
     tokenizer = SimpleTokenizer(vocab_file)
     tokens = {
         CropIndex(*crop_index): (
-            tokenize(captions_pair.iloc[0], tokenizer),
-            tokenize(captions_pair.iloc[1], tokenizer),
+            tokenize(caption_1, tokenizer),
+            tokenize(caption_2, tokenizer),
         )
-        for crop_index, captions_pair in captions.groupby(by=['person_id', 'frame_id'])
+        for crop_index, caption_1, caption_2 in captions.itertuples()
     }
 
     # Set the tokens dataloader
