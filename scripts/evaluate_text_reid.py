@@ -6,9 +6,9 @@ from tdbaseline.config import get_config
 
 def _get_crop_origin_from_args() -> str:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--type", type=str, choices=["files", "annotations"], required=True)
+    parser.add_argument("crop_origin", type=str, choices=["files", "annotations"])
 
-    return parser.parse_args().type
+    return parser.parse_args().crop_origin
 
 
 def main():

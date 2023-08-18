@@ -11,6 +11,6 @@ files of the models' outputs.
   - [`generate_captions_output.py`](./generate_captions_output.py): For each pair of captions of PEDES, we generate CLIP text features.
   - [`generate_all.py`](./generate_all.py): yes, it does generate everything mentionned above.
 - `evaluate` scripts: different framework of evaluation of a TD-ReID.
-  - [`evaluate_detection_reid.py`](./evaluate_detection_reid.py): evaluate as a D-ReID framework. Results can
+  - [`evaluate_detection_reid.py`](./evaluate_detection_reid.py): evaluate as a D-ReID framework. Results can be pure D-ReID performance (PSTR) or TD-ReID baseline performance. You can specify which model is evaluated by specifying `detection` or `text_detection` for D-ReID and TD-ReID specifically.
 be compared with D-ReID models such as PSTR.
-- [`xp scripts`](./xp/README.md) has a dedicated README to exlplain each the experiemnts.
+- [`xp scripts`](./xp/README.md) has a dedicated README to explain each the experiemnts.

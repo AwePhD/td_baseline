@@ -11,7 +11,7 @@ from tdbaseline.config import get_config
 
 def _get_evaluation_type_from_args() -> str:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--type", type=str, choices=["detection", "text_detection"], required=True)
+    parser.add_argument("type", type=str, choices=["detection", "text_detection"])
 
     return parser.parse_args().type
 
