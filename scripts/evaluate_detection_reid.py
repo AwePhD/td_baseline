@@ -1,21 +1,31 @@
+import argparse
 from pathlib import Path
 
 from tdbaseline.detection_reid.eval import (
     import_data,
     compute_mean_average_precision,
 )
-# pylint: disable=unused-import
 from tdbaseline.detection_reid.compute_similarities import (
     pstr_similarities, build_baseline_similarities)
 from tdbaseline.config import get_config
 
+def _get_evaluation_type_from_args() -> str:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--type", type=str, choices=["detection", "text_detection"], required=True)
+
+    return parser.parse_args().type
+
+
 
 def main():
+    evaluation_type = _get_evaluation_type_from_args()
     config = get_config(Path('./config.yaml'))
 
-    compute_similarities = pstr_similarities
-    # weight_of_text_features = 0
-    # compute_similarities = build_baseline_similarities(weight_of_text_features)
+    compute_similarities = (
+        pstr_similarities
+        if evaluation_type == "detection"
+        else build_baseline_similarities(config['eval']['detection_reid']['weight'])
+    )
 
     output_folder = Path('outputs')
     samples = import_data(

@@ -16,6 +16,7 @@ process:
 eval:
   detection_reid:
     threshold: .25
+    weight: .5
 
 data:
   root_folder: '~/data/'
