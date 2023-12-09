@@ -19,13 +19,14 @@ eval:
     weight: .5
 
 data:
-  root_folder: '~/data/'
-  frames_folder: '~/data/frames'
-  crops_folder: '~/data/test_query'
+  root_folder: '~/data/csu'
+  frames_folder: '~/data/csu/frames'
+  crops_folder: '~/data/csu/crops'
 
 h5_files:
   captions_output: './outputs/crop_index_to_captions_output.h5'
   detection_output: './outputs/frame_file_to_detection_output.h5'
   crop_features_from_files: './outputs/crop_index_to_crop_features_from_files.h5'
   crop_features_from_annotations: './outputs/crop_index_to_crop_features_from_annotations.h5'
+  crop_features_from_detections: './outputs/crop_index_to_crop_features_from_detections.h5'
   bboxes_clip_features: './outputs/frame_id_to_bboxes_clip_features.h5'
