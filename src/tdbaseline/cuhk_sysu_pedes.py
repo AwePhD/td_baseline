@@ -1,47 +1,34 @@
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
-ANNOTATIONS_TRAIN_FILENAME = "annotations_train.csv"
-ANNOTATIONS_TEST_FILENAME = "annotations_test.csv"
-INDEX_NAMES = ["person_id", "frame_id"]
-COLUMNS_DTYPE = {
+ANNOTATIONS_FILENAME = "annotations.csv"
+
+INDEXES = ["person_id", "frame_id"]
+
+COLUMN_NAME_TO_DTYPE = {
+    "split_sysu": "category",
     "is_hard": bool,
-    "type": "category",
-    "bbox_x": np.uint16,
-    "bbox_y": np.uint16,
-    "bbox_w": np.uint16,
-    "bbox_h": np.uint16,
+    "bbox_x": pd.UInt16Dtype(),
+    "bbox_y": pd.UInt16Dtype(),
+    "bbox_w": pd.UInt16Dtype(),
+    "bbox_h": pd.UInt16Dtype(),
+    "split_pedes": "category",
     "caption_1": object,
     "caption_2": object,
 }
 
 
-def _read_annotations_csv(
-    train_annotation_path: Path,
-    test_annotation_path: Path,
-):
-    train_annotations = pd.read_csv(
-        train_annotation_path,
-        index_col=tuple(INDEX_NAMES),
-        dtype={
-            column: dtype
-            for column, dtype in COLUMNS_DTYPE.items()
-            if column != "split"  # Exclude split column
-        },
-    )
-    test_annotations = pd.read_csv(
-        test_annotation_path,
-        index_col=tuple(INDEX_NAMES),
-        dtype=COLUMNS_DTYPE,
+def read_annotations_csv(data_folder: Path) -> pd.DataFrame:
+    return pd.read_csv(
+        str(data_folder / ANNOTATIONS_FILENAME),
+        index_col=tuple(INDEXES),
+        dtype=COLUMN_NAME_TO_DTYPE,
     )
 
-    return train_annotations, test_annotations
 
-
-def import_test_annotations(data_folder: Path) -> pd.DataFrame:
-    """Import test annotations of the CUHK-SYSU-PEDES to a DataFrame.
+def import_pedes_test_annotations(data_folder: Path) -> pd.DataFrame:
+    """Import PEDES test annotations of the CUHK-SYSU-PEDES to a DataFrame.
 
     Args:
         data_folder (Path, optional): Folder of the dataset. Defaults to DATA_FOLDER.
@@ -49,9 +36,17 @@ def import_test_annotations(data_folder: Path) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Test annotations of the dataset.
     """
-    _, annotations = _read_annotations_csv(
-        data_folder / ANNOTATIONS_TRAIN_FILENAME,
-        data_folder / ANNOTATIONS_TEST_FILENAME,
-    )
 
-    return annotations
+    return read_annotations_csv(data_folder).query("split_pedes == 'test'")
+
+
+def import_sysu_test_annotations(data_folder: Path) -> pd.DataFrame:
+    """Import SYSU test annotations of the CUHK-SYSU-PEDES to a DataFrame.
+
+    Args:
+        data_folder (Path, optional): Folder of the dataset. Defaults to DATA_FOLDER.
+
+    Returns:
+        pd.DataFrame: Test annotations of the dataset.
+    """
+    return read_annotations_csv(data_folder).query("split_sysu != 'train'")
