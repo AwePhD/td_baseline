@@ -20,41 +20,22 @@ from .pstr_output import import_detection_output_from_hdf5
 MEAN = [0.48145466, 0.4578275, 0.40821073]
 STD = [0.26862954, 0.26130258, 0.27577711]
 
-_transform_crop = T.Compose([
-    T.Resize(IMAGE_SIZE),
-    T.ToTensor(),
-    T.Normalize(MEAN, STD)
-])
+_transform_crop = T.Compose(
+    [T.Resize(IMAGE_SIZE), T.ToTensor(), T.Normalize(MEAN, STD)]
+)
 
 
-def _preprocess_crops(crops: List[ImageType]) -> torch.Tensor:
-    return torch.stack(
-        [_transform_crop(crop) for crop in crops])
-
-
-def build_dataloader_from_crops(
-    crops: List[ImageType],
-    batch_size: int,
-    num_workers: int,
-) -> DataLoader:
-    # crop method perfoms an integer approximation
-    crops_preprocessed = _preprocess_crops(crops)
-
-    return DataLoader(
-        crops_preprocessed,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers
-    )
+def preprocess_crops(crops: List[ImageType]) -> torch.Tensor:
+    return torch.stack([_transform_crop(crop) for crop in crops])
 
 
 def compute_features_from_crops(
-        model: CLIP, crops_preprocessed: torch.Tensor) -> torch.Tensor:
+    model: CLIP, crops_preprocessed: torch.Tensor
+) -> torch.Tensor:
     crops_features: List[torch.Tensor] = []
     with torch.no_grad():
         # Last layer + send to CPU
-        crops_features = model.encode_image(
-            crops_preprocessed.cuda())[:, 0, :].cpu()
+        crops_features = model.encode_image(crops_preprocessed.cuda())[:, 0, :].cpu()
 
     return crops_features
 
@@ -79,19 +60,12 @@ def _get_clip_features_from_one_batch_bboxes(
     # Then flatten the list of list of crops
     # to prepare a list of crops for features computation
     frames_crops = [
-        [
-            frame.crop(bbox.astype(np.int32))
-            for bbox in frame_bboxes
-        ]
+        [frame.crop(bbox.astype(np.int32)) for bbox in frame_bboxes]
         for frame, frame_bboxes in zip(frames, frames_bboxes)
     ]
-    crops = [
-        crop
-        for frame_crops in frames_crops
-        for crop in frame_crops
-    ]
+    crops = [crop for frame_crops in frames_crops for crop in frame_crops]
 
-    crops_preprocessed = _preprocess_crops(crops)
+    crops_preprocessed = preprocess_crops(crops)
 
     features = compute_features_from_crops(model, crops_preprocessed)
     split_features = np.split(features, len(frame_files))
@@ -115,7 +89,7 @@ def _get_bboxes_clip_features_from_detections(
         shuffle=False,
         batch_size=batch_size,
         num_workers=num_workers,
-        collate_fn=_collate_frames_dataloader
+        collate_fn=_collate_frames_dataloader,
     )
 
     # Path -> [100, 512] array
@@ -123,7 +97,10 @@ def _get_bboxes_clip_features_from_detections(
     for frame_files, bboxes in tqdm(frames_dataloader):
         frame_file_to_bboxes_clip_features.update(
             _get_clip_features_from_one_batch_bboxes(
-                model, frame_files, bboxes,)
+                model,
+                frame_files,
+                bboxes,
+            )
         )
 
     return frame_file_to_bboxes_clip_features
@@ -132,9 +109,9 @@ def _get_bboxes_clip_features_from_detections(
 def import_bboxes_clip_features_from_hdf5(
     h5_file: Path,
 ):
-    with h5py.File(h5_file, 'r') as hd5_file:
+    with h5py.File(h5_file, "r") as hd5_file:
         frame_id_to_bboxes_clip_features = {
-            extract_int_from_str(file_name): dataset['features'][...]
+            extract_int_from_str(file_name): dataset["features"][...]
             for file_name, dataset in hd5_file.items()
         }
 
@@ -148,11 +125,11 @@ def _export_bboxes_clip_features_to_hdf5(
     if output_h5.exists():
         output_h5.unlink()
 
-    with h5py.File(output_h5, 'w') as f:
+    with h5py.File(output_h5, "w") as f:
         for frame_file, features in frame_file_to_bboxes_clip_features.items():
             group = f.create_group(frame_file.name)
 
-            group.create_dataset('features', data=features)
+            group.create_dataset("features", data=features)
 
 
 def generate_bboxes_clip_features_from_detections(
@@ -168,7 +145,8 @@ def generate_bboxes_clip_features_from_detections(
 
     model = load_clip(weight_file).eval().cuda()
     frame_file_to_detection_output = import_detection_output_from_hdf5(
-        h5_file_detection_output, frame_folder)
+        h5_file_detection_output, frame_folder
+    )
     frame_id_to_bboxes_clip_features = _get_bboxes_clip_features_from_detections(
         model,
         frame_file_to_detection_output,
@@ -177,4 +155,5 @@ def generate_bboxes_clip_features_from_detections(
     )
 
     _export_bboxes_clip_features_to_hdf5(
-        frame_id_to_bboxes_clip_features, output_h5_file)
+        frame_id_to_bboxes_clip_features, output_h5_file
+    )

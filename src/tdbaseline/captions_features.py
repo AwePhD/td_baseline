@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from .data_struct import CaptionsOutput, CropIndex, FrameOutput
-from .cuhk_sysu_pedes import import_test_annotations
+from .cuhk_sysu_pedes import read_annotations_csv
 from .models.clip import load_clip
 from .models.tokenizer import SimpleTokenizer, tokenize
 from .utils import crop_index_from_filename, confirm_generation
@@ -28,19 +28,9 @@ def _collate_tokens_dataloader(
     Returns:
         Tuple[List[CropIndex], torch.Tensor]: crop_indexes and tokens
     """
-    crop_indexes = [
-        sample[0]
-        for sample in batch
-        for _ in range(2)
-    ]
+    crop_indexes = [sample[0] for sample in batch for _ in range(2)]
 
-    tokens = torch.stack(
-        [
-            tokens
-            for sample in batch
-            for tokens in sample[1]
-        ]
-    )
+    tokens = torch.stack([tokens for sample in batch for tokens in sample[1]])
 
     return crop_indexes, tokens
 
@@ -51,7 +41,7 @@ def _get_text_features(
     token_batch_size: int,
     vocab_file: Path,
 ) -> Dict[CropIndex, CaptionsOutput]:
-    captions = annotations[['caption_1', 'caption_2']].dropna()
+    captions = annotations[["caption_1", "caption_2"]]
 
     # Tokenize captions
     tokenizer = SimpleTokenizer(vocab_file)
@@ -65,10 +55,7 @@ def _get_text_features(
 
     # Set the tokens dataloader
     tokens_dataloader = DataLoader(
-        [
-            (crop_index, tokens_pair)
-            for crop_index, tokens_pair in tokens.items()
-        ],
+        [(crop_index, tokens_pair) for crop_index, tokens_pair in tokens.items()],
         batch_size=token_batch_size,
         collate_fn=_collate_tokens_dataloader,
     )
@@ -85,8 +72,9 @@ def _get_text_features(
             tokens_features = model.encode_text(batch_tokens.cuda()).cpu()
         # Prends le token de <END_OF_SEQUENCE> => CLASS TOKEN
         features_text.extend(
-            tokens_features[torch.arange(
-                tokens_features.shape[0]), batch_tokens.argmax(dim=-1)]
+            tokens_features[
+                torch.arange(tokens_features.shape[0]), batch_tokens.argmax(dim=-1)
+            ]
             .float()
             .numpy()
         )
@@ -94,7 +82,7 @@ def _get_text_features(
 
     n_samples = len(crop_indexes)
     return {
-        crop_indexes[i]: CaptionsOutput(features_text[i], features_text[i+1])
+        crop_indexes[i]: CaptionsOutput(features_text[i], features_text[i + 1])
         for i in range(0, n_samples, 2)
     }
 
@@ -109,40 +97,32 @@ def generate_captions_output_to_hdf5(
     if not confirm_generation(h5_file):
         return
 
-    annotations = import_test_annotations(data_folder)
+    annotations = read_annotations_csv(data_folder).dropna()
     model = load_clip(weight_file).eval().cuda()
 
     crop_index_to_captions_outputs = _get_text_features(
-        annotations,
-        model,
-        token_batch_size,
-        vocab_file
+        annotations, model, token_batch_size, vocab_file
     )
     _export_caption_features_to_hdf5(crop_index_to_captions_outputs, h5_file)
 
 
 def _export_caption_features_to_hdf5(
-    crop_index_to_captions_output: Dict[CropIndex, CaptionsOutput],
-    h5_file: Path
+    crop_index_to_captions_output: Dict[CropIndex, CaptionsOutput], h5_file: Path
 ) -> None:
-
-    with h5py.File(h5_file, 'w') as f:
-
+    with h5py.File(h5_file, "w") as f:
         for crop_index, captions_output in crop_index_to_captions_output.items():
-            group = f.create_group(
-                f"p{crop_index.person_id}_s{crop_index.frame_id}")
+            group = f.create_group(f"p{crop_index.person_id}_s{crop_index.frame_id}")
 
-            group.create_dataset('caption_1', data=captions_output.caption_1)
-            group.create_dataset('caption_2', data=captions_output.caption_2)
+            group.create_dataset("caption_1", data=captions_output.caption_1)
+            group.create_dataset("caption_2", data=captions_output.caption_2)
 
 
 def import_captions_output_from_hdf5(h5_file: Path) -> Dict[CropIndex, FrameOutput]:
-    with h5py.File(h5_file, 'r') as hd5_file:
+    with h5py.File(h5_file, "r") as hd5_file:
         crop_index_to_captions_output = {
-            crop_index_from_filename(filename):
-                CaptionsOutput(
-                    dataset[CaptionsOutput._fields[0]][...],
-                    dataset[CaptionsOutput._fields[1]][...],
+            crop_index_from_filename(filename): CaptionsOutput(
+                dataset[CaptionsOutput._fields[0]][...],
+                dataset[CaptionsOutput._fields[1]][...],
             )
             for filename, dataset in hd5_file.items()
         }

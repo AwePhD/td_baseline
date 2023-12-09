@@ -1,12 +1,9 @@
 import numpy as np
 
 
-def compute_average_precision(
-    labels: np.ndarray,
-    scores: np.ndarray,
-) -> float:
+def compute_average_precision(labels: np.ndarray, scores: np.ndarray) -> float:
     """
-    Namely, we compute the average precision over recall values i.e cut-off for each TPs.
+    We compute the average precision over recall values i.e cut-off for each TPs.
     There is a penality if the co
     """
     # No TP -> AP = 0
@@ -19,7 +16,7 @@ def compute_average_precision(
 
     tps = labels_ranked.cumsum(0)
 
-    precisions = (tps / np.arange(1, len(tps) + 1))
+    precisions = tps / np.arange(1, len(tps) + 1)
     precisions_at_delta_recall = precisions[labels_ranked]
     mean_average_precision = precisions_at_delta_recall.sum() / count_tp
 
