@@ -14,6 +14,7 @@ from ..metrics import compute_average_precision
 from ..data_struct import CropIndex
 from ..captions_features import import_captions_output_from_hdf5
 from .crop_features_from_dataset import import_crop_features_from_hdf5
+from tdbaseline.cuhk_sysu_pedes import read_annotations_csv
 
 
 def _get_labels_from_crop_indexes(crop_indexes: List[CropIndex]) -> np.ndarray:
@@ -30,9 +31,14 @@ def _get_labels_from_crop_indexes(crop_indexes: List[CropIndex]) -> np.ndarray:
     return np.repeat(labels, repeats=2, axis=0)
 
 
+def _normalize(features_matrix: np.ndarray) -> np.ndarray:
+    return features_matrix / np.linalg.norm(features_matrix, axis=1, keepdims=True)
+
+
 def evaluate_from_ground_truth(
     h5_file_crop_features: Path,
     h5_file_captions_output: Path,
+    data_folder: Path,
 ) -> float:
     crop_index_to_crop_features = import_crop_features_from_hdf5(h5_file_crop_features)
     crop_index_to_captions_output = import_captions_output_from_hdf5(
@@ -41,6 +47,12 @@ def evaluate_from_ground_truth(
 
     # Extract indexes to be sures to use same crop_indexes for both dict
     crop_indexes = list(crop_index_to_captions_output.keys())
+
+    annotations = read_annotations_csv(data_folder).dropna()
+    crop_indexes = [
+        CropIndex(*crop_index)
+        for crop_index in annotations[annotations.split_pedes == "test"].index
+    ]
 
     # NOTE: same crop_index for two consecutive queries
     queries_features = np.concatenate(
@@ -57,7 +69,9 @@ def evaluate_from_ground_truth(
         ]
     )
 
-    all_similarities = np.einsum("nd,md->nm", queries_features, gallery_features)
+    all_similarities = np.einsum(
+        "nd,md->nm", _normalize(queries_features), _normalize(gallery_features)
+    )
 
     all_labels = _get_labels_from_crop_indexes(crop_indexes)
 

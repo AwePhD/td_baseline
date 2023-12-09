@@ -17,22 +17,25 @@ import h5py
 import numpy as np
 import pandas as pd
 import torch
+from torch.utils.data import DataLoader
 from PIL import Image
 from PIL.Image import Image as ImageType
 from irra.model.clip_model import CLIP
 
-from ..crop_features import (
-    compute_features_from_crops,
-    build_dataloader_from_crops,
-)
-from ..models.clip import load_clip
-from ..cuhk_sysu_pedes import import_test_annotations
-from ..utils import (
+from tdbaseline.crop_features import compute_features_from_crops, preprocess_crops
+from tdbaseline.models.clip import load_clip
+from tdbaseline.cuhk_sysu_pedes import import_pedes_test_annotations
+from tdbaseline.utils import (
     gt_bboxes_from_annotations,
     confirm_generation,
     crop_index_from_filename,
 )
-from ..data_struct import CropIndex
+from tdbaseline.data_struct import CropIndex
+from tdbaseline.text_reid.crops_features import export_crops_features_to_hdf5
+
+
+def _collate_pil(batch: List[ImageType]) -> List[ImageType]:
+    return batch
 
 
 def _compute_clip_features_from_crops(
@@ -41,12 +44,18 @@ def _compute_clip_features_from_crops(
     num_workers: int,
     crops: List[ImageType],
 ) -> np.ndarray:
-    crops_dataloader = build_dataloader_from_crops(
-        crops, batch_size, num_workers)
+    crops_dataloader = DataLoader(
+        crops,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=lambda batch: batch,
+    )
 
     all_features: List[torch.Tensor] = []
-    for crops in crops_dataloader:
-        all_features.append(compute_features_from_crops(model, crops))
+    for crops_batch in crops_dataloader:
+        crops_preprocessed = preprocess_crops(crops_batch)
+        all_features.append(compute_features_from_crops(model, crops_preprocessed))
 
     return torch.cat(all_features).numpy()
 
@@ -72,10 +81,12 @@ def _from_files(
     crops = [
         Image.open(crop_path)
         for crop_path in crops_folder.iterdir()
+        if crop_path.suffix == ".jpg"
     ]
 
     all_features = _compute_clip_features_from_crops(
-        model, batch_size, num_workers, crops)
+        model, batch_size, num_workers, crops
+    )
 
     return {
         crop_index_from_filename(crop_path.name): features
@@ -90,34 +101,25 @@ def _from_annotations(
     batch_size: int,
     num_workers: int,
 ) -> Dict[CropIndex, torch.Tensor]:
-    gt_bboxes = gt_bboxes_from_annotations(annotations)
+    crop_index_to_gt_bboxes = gt_bboxes_from_annotations(annotations)
 
     crops = [
         (
-            Image
-            .open(frames_folder / f's{crop_index.frame_id}.jpg')
-            .crop(gt_bboxes[crop_index])
+            Image.open(frames_folder / f"s{crop_index.frame_id}.jpg").crop(
+                crop_index_to_gt_bboxes[crop_index]
+            )
         )
-        for crop_index in gt_bboxes.keys()
+        for crop_index in crop_index_to_gt_bboxes.keys()
     ]
 
     all_features = _compute_clip_features_from_crops(
-        model, batch_size, num_workers, crops)
+        model, batch_size, num_workers, crops
+    )
 
     return {
         CropIndex(*crop_index): features
-        for crop_index, features in zip(gt_bboxes.keys(), all_features)
+        for crop_index, features in zip(crop_index_to_gt_bboxes.keys(), all_features)
     }
-
-
-def _export_crops_features_to_hdf5(
-        crop_index_to_features: Dict[CropIndex, np.ndarray], h5_file: Path):
-    with h5py.File(h5_file, 'w') as f:
-        for crop_index, features in crop_index_to_features.items():
-            group = f.create_group(
-                f"p{crop_index.person_id}_s{crop_index.frame_id}")
-
-            group.create_dataset('features', data=features)
 
 
 def generate_crop_features_from_files(
@@ -125,16 +127,15 @@ def generate_crop_features_from_files(
     crops_folder: Path,
     batch_size: int,
     num_workers: int,
-    h5_file: Path
+    h5_file: Path,
 ) -> None:
     if not confirm_generation(h5_file):
         return
 
     model = load_clip(model_weight).eval().cuda()
 
-    crop_index_to_features = _from_files(
-        crops_folder, model, batch_size, num_workers)
-    _export_crops_features_to_hdf5(crop_index_to_features, h5_file)
+    crop_index_to_features = _from_files(crops_folder, model, batch_size, num_workers)
+    export_crops_features_to_hdf5(crop_index_to_features, h5_file)
 
 
 def generate_crop_features_from_annotations(
@@ -143,25 +144,24 @@ def generate_crop_features_from_annotations(
     frames_folder: Path,
     batch_size: int,
     num_workers: int,
-    h5_file: Path
+    h5_file: Path,
 ) -> None:
     if not confirm_generation(h5_file):
         return
 
     model = load_clip(model_weight).eval().cuda()
-    annotations = import_test_annotations(data_folder)
+    annotations = import_pedes_test_annotations(data_folder).dropna()
 
     crop_index_to_features = _from_annotations(
-        annotations, frames_folder, model, batch_size, num_workers)
-    _export_crops_features_to_hdf5(crop_index_to_features, h5_file)
+        annotations, frames_folder, model, batch_size, num_workers
+    )
+    export_crops_features_to_hdf5(crop_index_to_features, h5_file)
 
 
-def import_crop_features_from_hdf5(
-    h5_file: Path,
-) -> Dict[CropIndex, np.ndarray]:
-    with h5py.File(h5_file, 'r') as h5_content:
+def import_crop_features_from_hdf5(h5_file: Path) -> Dict[CropIndex, np.ndarray]:
+    with h5py.File(h5_file, "r") as h5_content:
         crop_index_to_crop_features = {
-            crop_index_from_filename(filename): dataset['features'][...]
+            crop_index_from_filename(filename): dataset["features"][...]
             for filename, dataset in h5_content.items()
         }
     return crop_index_to_crop_features
