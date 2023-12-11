@@ -173,7 +173,7 @@ test_pipeline = [
 ]
 
 # change the path of the datasetz
-data_root = f"{Path.home() / 'data' / 'sysu'}"
+data_root = f"{Path.home() / 'data' / 'sysu'}/"
 data = dict(
     samples_per_gpu=2,
     workers_per_gpu=2,
@@ -191,7 +191,8 @@ data = dict(
     ),
     test=dict(
         ann_file=data_root
-        + "annotation/test_new.json",  # change the path of the annotation file
+        # + "annotation/test_new.json",  # change the path of the annotation file
+        + "annotation/test_new_pedes.json",  # change the path of the annotation file
         img_prefix=data_root + "Image/SSM/",
         pipeline=test_pipeline,
     ),

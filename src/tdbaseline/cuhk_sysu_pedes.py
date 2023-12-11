@@ -31,7 +31,7 @@ def import_pedes_test_annotations(data_folder: Path) -> pd.DataFrame:
     """Import PEDES test annotations of the CUHK-SYSU-PEDES to a DataFrame.
 
     Args:
-        data_folder (Path, optional): Folder of the dataset. Defaults to DATA_FOLDER.
+        data_folder (Path, optional): Folder of the dataset.
 
     Returns:
         pd.DataFrame: Test annotations of the dataset.
@@ -44,7 +44,7 @@ def import_sysu_test_annotations(data_folder: Path) -> pd.DataFrame:
     """Import SYSU test annotations of the CUHK-SYSU-PEDES to a DataFrame.
 
     Args:
-        data_folder (Path, optional): Folder of the dataset. Defaults to DATA_FOLDER.
+        data_folder (Path, optional): Folder of the dataset.
 
     Returns:
         pd.DataFrame: Test annotations of the dataset.
