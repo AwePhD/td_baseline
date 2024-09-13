@@ -3,14 +3,13 @@ from typing import Dict
 
 import h5py
 
+from .data_struct import Detections
 from .models.pstr import PSTR
-from .data_struct import DetectionOutput
 from .utils import confirm_generation
 
 
-def _export_detection_output_to_hdf5(
-    frame_file_to_detection: Dict[Path, DetectionOutput],
-    h5_file: Path
+def _export_detections_to_h5(
+    frame_id_to_detections: Dict[int, Detections], h5_file: Path
 ) -> None:
     """Export PSTR outputs to a h5 file with a frame filename group and datasets
     scores, bboxes, features_pstr.
@@ -19,20 +18,18 @@ def _export_detection_output_to_hdf5(
         frame_file_to_detection (Dict[Path, DetectionOutput]): PSTR outputs mapped to frame file
         file (Path): path of h5 file to export
     """
-    with h5py.File(h5_file, 'w') as f:
-        for frame_file, detection_output in frame_file_to_detection.items():
-            group = f.create_group(frame_file.name)
+    with h5py.File(h5_file, "w") as out_file:
+        for frame_id, detections in frame_id_to_detections.items():
+            group = out_file.create_group(str(frame_id))
 
-            group.create_dataset('scores', data=detection_output.scores)
-            group.create_dataset('bboxes', data=detection_output.bboxes)
-            group.create_dataset(
-                'features_pstr', data=detection_output.features_pstr)
+            group.create_dataset("scores", data=detections.scores)
+            group.create_dataset("bboxes", data=detections.bboxes)
+            group.create_dataset("features_pstr", data=detections.features_pstr)
 
 
-def import_detection_output_from_hdf5(
-    h5_file: Path, frame_folder: Path
-) -> Dict[Path, DetectionOutput]:
-    """Generate a map between the frame file and their DetectionOutput from PSTR
+def import_detections_from_h5(in_file: Path) -> Dict[int, Detections]:
+    """
+    Generate a map between the frame file and their DetectionOutput from PSTR
 
     Args:
         h5_file (Path): h5 file containing the model's outputs
@@ -41,20 +38,19 @@ def import_detection_output_from_hdf5(
     Returns:
         Dict[Path, DetectionOutput]: map between file object and model outputs.
     """
-    with h5py.File(h5_file, 'r') as hd5_file:
+    with h5py.File(in_file, "r") as in_file:
         frame_path_to_detections = {
-            frame_folder / frame_filename:
-                DetectionOutput(
-                    detection_output[DetectionOutput._fields[0]][...],
-                    detection_output[DetectionOutput._fields[1]][...],
-                    detection_output[DetectionOutput._fields[2]][...],
-                )
-            for frame_filename, detection_output in hd5_file.items()
+            frame_id: Detections(
+                detections[Detections._fields[0]][...],
+                detections[Detections._fields[1]][...],
+                detections[Detections._fields[2]][...],
+            )
+            for frame_id, detections in in_file.items()
         }
     return frame_path_to_detections
 
 
-def generate_detection_output_to_hdf5(
+def generate_detections_to_h5(
     config_file: Path,
     weight_file: Path,
     h5_file: Path,
@@ -64,27 +60,27 @@ def generate_detection_output_to_hdf5(
 
     model = PSTR(config_file, weight_file)
 
-    frame_file_to_detection_output = _get_detection_output(model)
-    _export_detection_output_to_hdf5(frame_file_to_detection_output, h5_file)
+    frame_id_to_detections = _compute_detections(model)
+    _export_detections_to_h5(frame_id_to_detections, h5_file)
 
 
-def _get_detection_output(model: PSTR) -> Dict[Path, DetectionOutput]:
-    """PSTR model computes the output of the list of frames loaded into it and outputs
-    them in a dict that maps every file to their outputs.
+def _compute_detections(model: PSTR) -> Dict[int, Detections]:
+    """PSTR model computes the output of the list of frames loaded into it and
+    outputs them in a dict that maps every file to their outputs.
 
     Args:
         model (PSTR): model configured.
 
     Returns:
-        Dict[Path, DetectionOutput]: map between file object and model outputs.
+        Dict[int, Detection]: map between file object and model outputs.
     """
     results_by_path = model.infer()
 
     return {
-        path: DetectionOutput(
+        frame_id: Detections(
             scores=result[:, 4],
             bboxes=result[:, :4],
             features_pstr=result[:, 5:],
         )
-        for path, result in results_by_path.items()
+        for frame_id, result in results_by_path.items()
     }

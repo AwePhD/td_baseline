@@ -1,6 +1,7 @@
-from pathlib import Path
-
 _base_ = ["../_base_/datasets/cuhk_detection.py", "../_base_/default_runtime.py"]
+
+train_pipeline = None
+
 model = dict(
     type="PSTR",
     backbone=dict(
@@ -107,51 +108,12 @@ model = dict(
         loss_bbox=dict(type="L1Loss", loss_weight=5.0),
         loss_iou=dict(type="GIoULoss", loss_weight=2.0),
     ),
-    # training and testing settings
-    train_cfg=dict(
-        assigner=dict(
-            type="HungarianAssigner",
-            cls_cost=dict(type="FocalLossCost", weight=2.0),
-            reg_cost=dict(type="BBoxL1Cost", weight=5.0, box_format="xywh"),
-            iou_cost=dict(type="IoUCost", iou_mode="giou", weight=2.0),
-            iou_oim=dict(type="OIMCost", weight=0.2),
-        )
-    ),
     test_cfg=dict(max_per_img=100),
 )
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True
 )
-# train_pipeline, NOTE the img_scale and the Pad's size_divisor is different
-# from the default setting in mmdet.
-train_pipeline = [
-    dict(type="LoadImageFromFile"),
-    dict(type="LoadAnnotations", with_bbox=True),
-    dict(type="RandomFlip", flip_ratio=0.5),
-    dict(
-        type="AutoAugment",
-        policies=[
-            [
-                dict(
-                    type="Resize",
-                    img_scale=[
-                        (667, 400),
-                        (1000, 600),
-                        (1333, 800),
-                        (1500, 900),
-                        (1666, 1000),
-                    ],
-                    multiscale_mode="value",
-                    keep_ratio=True,
-                )
-            ],
-        ],
-    ),
-    dict(type="Normalize", **img_norm_cfg),
-    dict(type="Pad", size_divisor=1),
-    dict(type="DefaultFormatBundle"),
-    dict(type="Collect", keys=["img", "gt_bboxes", "gt_labels", "gt_ids"]),
-]
+
 # test_pipeline, NOTE the Pad's size_divisor is different from the default
 # setting (size_divisor=32). While there is little effect on the performance
 # whether we use the default setting or use size_divisor=1.
@@ -173,52 +135,12 @@ test_pipeline = [
 ]
 
 # change the path of the datasetz
-data_root = f"{Path.home() / 'data' / 'sysu'}/"
 data = dict(
-    samples_per_gpu=2,
+    samples_per_gpu=6,
     workers_per_gpu=2,
-    train=dict(
-        ann_file=data_root
-        + "annotation/train_pid_new.json",  # change the path of the annotation file
-        img_prefix=data_root + "Image/SSM/",
-        pipeline=train_pipeline,
-    ),
-    val=dict(
-        ann_file=data_root
-        + "annotation/test_new.json",  # change the path of the annotation file
-        img_prefix=data_root + "Image/SSM/",
-        pipeline=test_pipeline,
-    ),
     test=dict(
-        ann_file=data_root
-        # + "annotation/test_new.json",  # change the path of the annotation file
-        + "annotation/test_new_pedes.json",  # change the path of the annotation file
-        img_prefix=data_root + "Image/SSM/",
+        ann_file="outputs/test.json",
+        img_prefix="data/cuhk_sysu_pedes/mmlab/test/",
         pipeline=test_pipeline,
     ),
 )
-
-# optimizer
-optimizer = dict(
-    type="AdamW",
-    lr=1e-4,
-    weight_decay=0.0001,
-    paramwise_cfg=dict(
-        custom_keys={
-            "backbone": dict(lr_mult=0.2),
-            "sampling_offsets": dict(lr_mult=0.1),
-            "reference_points": dict(lr_mult=0.1),
-        }
-    ),
-)
-optimizer_config = dict(grad_clip=dict(max_norm=0.1, norm_type=2))
-# learning policy
-lr_config = dict(
-    policy="step",
-    warmup="linear",
-    warmup_iters=500,
-    warmup_ratio=1.0 / 3,
-    step=[19, 23],
-)
-# lr_config = dict(policy='step', step=[16, 22])
-runner = dict(type="EpochBasedRunner", max_epochs=24)
