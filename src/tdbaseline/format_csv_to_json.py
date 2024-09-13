@@ -1,13 +1,12 @@
 import json
-from typing import TypedDict, List
 from pathlib import Path
+from typing import List, TypedDict
 
 import pandas as pd
 from PIL import Image
 
-from tdbaseline.utils import confirm_generation
-
 from .cuhk_sysu_pedes import read_annotations_csv
+from .utils import confirm_generation
 
 
 class AnnotationsCategory(TypedDict):
@@ -45,22 +44,25 @@ class AnnotationsMM(TypedDict):
 CATEGORY_ID = 1
 CATEGORY_NAME = "person"
 SUPERCATEGORY = "object"
-# ISCROWD = 0
-# SEGMENTATION_LIST = list()
-# BBOX = [0, 0, 0, 0]
 
 
-def _format_image(i: int, frame_id: int, frames_folder: Path) -> AnnotationsImage:
+def _format_image(
+    i: int, frame_id: int, frames_folder: Path
+) -> AnnotationsImage:
     file_name = f"s{frame_id}.jpg"
 
     with Image.open(frames_folder / file_name) as image:
         width = image.width
         height = image.height
 
-    return AnnotationsImage(id=i, file_name=file_name, width=width, height=height)
+    return AnnotationsImage(
+        id=i, file_name=file_name, width=width, height=height
+    )
 
 
-def _format_to_json(annotations: pd.DataFrame, frames_folder: Path) -> AnnotationsMM:
+def _format_to_json(
+    annotations: pd.DataFrame, frames_folder: Path
+) -> AnnotationsMM:
     frame_ids = annotations.frame_id.unique()
     images = [
         _format_image(i, frame_id, frames_folder)
@@ -68,15 +70,19 @@ def _format_to_json(annotations: pd.DataFrame, frames_folder: Path) -> Annotatio
     ]
 
     return AnnotationsMM(
-        categories=[AnnotationsCategory(
-            id=CATEGORY_ID, name=CATEGORY_NAME, supercategory=SUPERCATEGORY
-        )],
+        categories=[
+            AnnotationsCategory(
+                id=CATEGORY_ID, name=CATEGORY_NAME, supercategory=SUPERCATEGORY
+            )
+        ],
         images=images,
         annotations=[],
     )
 
 
-def _export_json(annotations_mmlab: AnnotationsMM, annotations_json: Path) -> None:
+def _export_json(
+    annotations_mmlab: AnnotationsMM, annotations_json: Path
+) -> None:
     with open(annotations_json, mode="w", encoding="utf-8") as file:
         json.dump(annotations_mmlab, file, indent=2)
 

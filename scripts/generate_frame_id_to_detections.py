@@ -1,6 +1,6 @@
 from pathlib import Path
-from tdbaseline.config import build_path, get_config
 
+from tdbaseline.config import build_path, get_config
 from tdbaseline.pstr_output import generate_detections_to_h5
 
 

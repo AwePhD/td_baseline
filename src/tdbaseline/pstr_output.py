@@ -11,11 +11,12 @@ from .utils import confirm_generation
 def _export_detections_to_h5(
     frame_id_to_detections: Dict[int, Detections], h5_file: Path
 ) -> None:
-    """Export PSTR outputs to a h5 file with a frame filename group and datasets
-    scores, bboxes, features_pstr.
+    """Export PSTR outputs to a h5 file with a frame filename group and
+    datasets scores, bboxes, features_pstr.
 
     Args:
-        frame_file_to_detection (Dict[Path, DetectionOutput]): PSTR outputs mapped to frame file
+        frame_file_to_detection (Dict[Path, DetectionOutput]): PSTR outputs
+            mapped to frame file
         file (Path): path of h5 file to export
     """
     with h5py.File(h5_file, "w") as out_file:
@@ -24,12 +25,14 @@ def _export_detections_to_h5(
 
             group.create_dataset("scores", data=detections.scores)
             group.create_dataset("bboxes", data=detections.bboxes)
-            group.create_dataset("features_pstr", data=detections.features_pstr)
+            group.create_dataset(
+                "features_pstr", data=detections.features_pstr
+            )
 
 
-def import_detections_from_h5(in_file: Path) -> Dict[int, Detections]:
-    """
-    Generate a map between the frame file and their DetectionOutput from PSTR
+def import_detections_from_h5(h5_file: Path) -> Dict[int, Detections]:
+    """Generate a map between the frame file and their DetectionOutput from
+    PSTR.
 
     Args:
         h5_file (Path): h5 file containing the model's outputs
@@ -38,7 +41,7 @@ def import_detections_from_h5(in_file: Path) -> Dict[int, Detections]:
     Returns:
         Dict[Path, DetectionOutput]: map between file object and model outputs.
     """
-    with h5py.File(in_file, "r") as in_file:
+    with h5py.File(h5_file, "r") as in_file:
         frame_path_to_detections = {
             frame_id: Detections(
                 detections[Detections._fields[0]][...],

@@ -15,8 +15,7 @@ from ..utils import extract_int_from_str
 
 
 class PSTR:
-    """
-    A wrapper object of PSTR from MMDET.
+    """A wrapper object of PSTR from MMDET.
 
     - It is initialized by a config file and the weight of the model.
     - It can run infer that outputs PSTR result for the whole dataset.
@@ -49,7 +48,7 @@ class PSTR:
         ).eval()
         load_checkpoint(model, str(weight_file), map_location="cpu")
 
-        model.CLASSES = self.dataloader.dataset.CLASSES
+        model.CLASSES = self.dataloader.dataset.CLASSES  # type: ignore
 
         return MMDataParallel(model, device_ids=[0])
 
@@ -64,9 +63,11 @@ class PSTR:
     def infer(self) -> Dict[int, np.ndarray]:
         results: Dict[int, np.ndarray] = {}
         for data in tqdm(self.dataloader):
-            frame_id = extract_int_from_str(data["img_metas"][0].data[0][0]["filename"])
+            frame_id = extract_int_from_str(
+                data["img_metas"][0].data[0][0]["filename"]
+            )
             with torch.no_grad():
-                results[frame_id] = self.model(return_loss=False, rescale=True, **data)[
-                    0
-                ][0]
+                results[frame_id] = self.model(
+                    return_loss=False, rescale=True, **data
+                )[0][0]
         return results

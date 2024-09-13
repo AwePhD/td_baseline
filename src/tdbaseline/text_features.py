@@ -18,9 +18,9 @@ from .utils import confirm_generation, crop_index_from_filename
 def _collate_tokens_dataloader(
     batch: List[Tuple[CropIndex, Tuple[torch.Tensor, torch.Tensor]]]
 ) -> Tuple[List[CropIndex], torch.Tensor]:
-    """Format tuples (crop index, tensor of size 2, token_length) to
-    two lists. One list for crop indexes and another for individual tokens.
-    Crop indexes are doubled because for 1 crop index there are two tokens.
+    """Format tuples (crop index, tensor of size 2, token_length) to two lists.
+    One list for crop indexes and another for individual tokens. Crop indexes
+    are doubled because for 1 crop index there are two tokens.
 
     Args:
         batch (List[Tuple[CropIndex, Tuple[torch.Tensor, torch.Tensor]]]):
@@ -52,19 +52,19 @@ def _compute_text_features(
             (
                 tokenize(caption_1, tokenizer),
                 tokenize(caption_2, tokenizer),
-            )
+            ),
         )
         for crop_index, caption_1, caption_2 in captions.itertuples()
     ]
 
     # Set the tokens dataloader
     tokens_dataloader: DataLoader = DataLoader(
-        tokens,
+        tokens,  # type: ignore
         batch_size=token_batch_size,
         collate_fn=_collate_tokens_dataloader,
     )
 
-    crop_indexes: list[CropIndex] = []
+    crop_indexes: List[CropIndex] = []
     features_text = []
     for batch in tokens_dataloader:
         batch_crop_indexes, batch_tokens = batch
@@ -77,7 +77,8 @@ def _compute_text_features(
         # Prends le token de <END_OF_SEQUENCE> => CLASS TOKEN
         features_text.extend(
             tokens_features[
-                torch.arange(tokens_features.shape[0]), batch_tokens.argmax(dim=-1)
+                torch.arange(tokens_features.shape[0]),
+                batch_tokens.argmax(dim=-1),
             ]
             .float()
             .numpy()
@@ -111,16 +112,23 @@ def generate_text_features_to_h5(
 
 
 def _export_text_features_to_h5(
-    crop_index_to_captions_output: Dict[CropIndex, CaptionsOutput], h5_file: Path
+    crop_index_to_captions_output: Dict[CropIndex, CaptionsOutput],
+    h5_file: Path,
 ) -> None:
     with h5py.File(h5_file, "w") as out_file:
-        for crop_index, captions_output in crop_index_to_captions_output.items():
+        for (
+            crop_index,
+            captions_output,
+        ) in crop_index_to_captions_output.items():
             out_file.create_dataset(
-                f"p{crop_index.person_id}_s{crop_index.frame_id}", data=captions_output
+                f"p{crop_index.person_id}_s{crop_index.frame_id}",
+                data=captions_output,
             )
 
 
-def import_features_text_from_h5(h5_file: Path) -> Dict[CropIndex, CaptionsOutput]:
+def import_features_text_from_h5(
+    h5_file: Path,
+) -> Dict[CropIndex, CaptionsOutput]:
     with h5py.File(h5_file, "r") as in_file:
         crop_index_to_features_text: Dict[CropIndex, CaptionsOutput] = {
             crop_index_from_filename(filename): text_features[...]
