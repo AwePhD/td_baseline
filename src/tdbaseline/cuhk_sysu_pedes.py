@@ -7,21 +7,23 @@ ANNOTATIONS_FILENAME = "annotations.csv"
 INDEXES = ["person_id", "frame_id"]
 
 COLUMN_NAME_TO_DTYPE = {
-    "split_sysu": "category",
-    "is_hard": bool,
+    "bbox_h": pd.UInt16Dtype(),
+    "bbox_w": pd.UInt16Dtype(),
     "bbox_x": pd.UInt16Dtype(),
     "bbox_y": pd.UInt16Dtype(),
-    "bbox_w": pd.UInt16Dtype(),
-    "bbox_h": pd.UInt16Dtype(),
-    "split_pedes": "category",
     "caption_1": object,
     "caption_2": object,
+    "is_hard": "boolean",
+    "split": "category",
+    "split_pedes": "category",
+    "split_sysu": "category",
 }
 
 
-def read_annotations_csv(data_folder: Path) -> pd.DataFrame:
+def read_annotations_csv(annotations: Path) -> pd.DataFrame:
+    assert annotations.exists()
     return pd.read_csv(
-        str(data_folder / ANNOTATIONS_FILENAME),
+        str(annotations),
         index_col=tuple(INDEXES),
         dtype=COLUMN_NAME_TO_DTYPE,
     )
