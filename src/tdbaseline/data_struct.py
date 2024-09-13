@@ -1,8 +1,10 @@
+from typing_extensions import TypeAlias
 from typing import NamedTuple, List, Optional
 
 import numpy as np
 
-class DetectionOutput(NamedTuple):
+
+class Detections(NamedTuple):
     # (100,)
     scores: np.ndarray
     # (100, 4)
@@ -10,9 +12,10 @@ class DetectionOutput(NamedTuple):
     # (100, 512)
     features_pstr: np.ndarray
 
-class CaptionsOutput(NamedTuple):
-    caption_1: np.ndarray
-    caption_2: np.ndarray
+
+#: (2, 512) No need to have two different name for this, too much clutter.
+CaptionsOutput: TypeAlias = np.ndarray
+
 
 class FrameOutput(NamedTuple):
     # (100,)
@@ -24,9 +27,11 @@ class FrameOutput(NamedTuple):
     # (100, 512)
     features_clip: np.ndarray
 
+
 class CropIndex(NamedTuple):
     person_id: int
     frame_id: int
+
 
 class Query(NamedTuple):
     frame_id: int
@@ -34,6 +39,7 @@ class Query(NamedTuple):
     captions_output: CaptionsOutput
     # (4,)
     gt_bbox: np.ndarray
+
 
 class GalleryFrame(NamedTuple):
     frame_id: int
@@ -43,6 +49,7 @@ class GalleryFrame(NamedTuple):
 
 
 Gallery = List[GalleryFrame]
+
 
 class Sample(NamedTuple):
     person_id: int
