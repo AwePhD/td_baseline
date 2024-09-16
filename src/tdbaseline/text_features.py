@@ -9,7 +9,7 @@ from irra.model.clip_model import CLIP
 from torch.utils.data import DataLoader
 
 from .cuhk_sysu_pedes import read_annotations_csv
-from .data_struct import CaptionsOutput, CropIndex
+from .data_struct import CropIndex
 from .models.clip import load_clip
 from .models.tokenizer import SimpleTokenizer, tokenize
 from .utils import confirm_generation, crop_index_from_filename
@@ -41,7 +41,7 @@ def _compute_text_features(
     model: CLIP,
     token_batch_size: int,
     vocab_file: Path,
-) -> Dict[CropIndex, CaptionsOutput]:
+) -> Dict[CropIndex, np.ndarray]:
     captions = annotations[["caption_1", "caption_2"]]
 
     # Tokenize captions
@@ -112,7 +112,7 @@ def generate_text_features_to_h5(
 
 
 def _export_text_features_to_h5(
-    crop_index_to_captions_output: Dict[CropIndex, CaptionsOutput],
+    crop_index_to_captions_output: Dict[CropIndex, np.ndarray],
     h5_file: Path,
 ) -> None:
     with h5py.File(h5_file, "w") as out_file:
@@ -128,9 +128,9 @@ def _export_text_features_to_h5(
 
 def import_features_text_from_h5(
     h5_file: Path,
-) -> Dict[CropIndex, CaptionsOutput]:
+) -> Dict[CropIndex, np.ndarray]:
     with h5py.File(h5_file, "r") as in_file:
-        crop_index_to_features_text: Dict[CropIndex, CaptionsOutput] = {
+        crop_index_to_features_text: Dict[CropIndex, np.ndarray] = {
             crop_index_from_filename(filename): text_features[...]
             for filename, text_features in in_file.items()
         }

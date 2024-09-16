@@ -1,5 +1,4 @@
-from typing_extensions import TypeAlias
-from typing import NamedTuple, List, Optional
+from typing import List, NamedTuple, Optional
 
 import numpy as np
 
@@ -11,10 +10,6 @@ class Detections(NamedTuple):
     bboxes: np.ndarray
     # (100, 512)
     features_pstr: np.ndarray
-
-
-#: (2, 512) No need to have two different name for this, too much clutter.
-CaptionsOutput: TypeAlias = np.ndarray
 
 
 class FrameOutput(NamedTuple):
