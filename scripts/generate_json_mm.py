@@ -8,9 +8,9 @@ def main():
     config = get_config(Path("./config.yaml"))
 
     format_parquet_to_json(
-        build_path(config["data"]["annotations"]),
-        build_path(config["data"]["annotations_json"]),
-        build_path(config["data"]["frames_folder"]),
+        build_path(config["data.annotations"]),
+        build_path(config["data.annotations_json"]),
+        build_path(config["data.frames_folder"]),
     )
 
 

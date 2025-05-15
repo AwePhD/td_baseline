@@ -33,7 +33,7 @@ from ..utils import (
 from .common import compute_clip_features_from_crops
 
 
-def export_crop_index_to_features_to_hdf5(
+def _export_crop_index_to_features_to_hdf5(
     crop_index_to_features: Dict[CropIndex, np.ndarray], h5_file: Path
 ):
     with h5py.File(h5_file, "w") as f:
@@ -132,7 +132,7 @@ def _from_annotations(
     }
 
 
-def generate_crop_features_from_files(
+def generate_features_crops_from_files(
     model_weight: Path,
     annotations_file: Path,
     crops_folder: Path,
@@ -162,10 +162,10 @@ def generate_crop_features_from_files(
     crop_index_to_features = _from_files(
         files_test, model, batch_size, num_workers
     )
-    export_crop_index_to_features_to_hdf5(crop_index_to_features, h5_file)
+    _export_crop_index_to_features_to_hdf5(crop_index_to_features, h5_file)
 
 
-def generate_crop_features_from_annotations(
+def generate_features_crops_from_annotations(
     model_weight: Path,
     annotations_file: Path,
     frames_folder: Path,
@@ -182,10 +182,10 @@ def generate_crop_features_from_annotations(
     crop_index_to_features = _from_annotations(
         annotations, frames_folder, model, batch_size, num_workers
     )
-    export_crop_index_to_features_to_hdf5(crop_index_to_features, h5_file)
+    _export_crop_index_to_features_to_hdf5(crop_index_to_features, h5_file)
 
 
-def import_crop_features_from_hdf5(
+def import_features_crop_from_hdf5(
     h5_file: Path,
 ) -> Dict[CropIndex, np.ndarray]:
     with h5py.File(h5_file, "r") as h5_content:

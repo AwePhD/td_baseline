@@ -16,16 +16,27 @@ from .common import compute_clip_features_from_crops
 NAME_DATASET = "CLIP_features"
 
 
-def append_detections_features_to_hdf5(
-    frame_id_to_detections_features: Dict[int, np.ndarray], h5_file: Path
+def import_features_detection_from_hdf5(
+    h5_file: Path,
+) -> Dict[int, np.ndarray]:
+    with h5py.File(h5_file, "r") as h5_content:
+        frame_id_to_features_detection = {
+            int(frame_id): dataset[NAME_DATASET][...]
+            for frame_id, dataset in h5_content.items()
+        }
+    return frame_id_to_features_detection
+
+
+def _append_features_detection_to_hdf5(
+    frame_id_to_features_detection: Dict[int, np.ndarray], h5_file: Path
 ):
     with h5py.File(h5_file, "a") as f:
-        for frame_id, features in frame_id_to_detections_features.items():
+        for frame_id, features in frame_id_to_features_detection.items():
             group = f.create_group(str(frame_id))
             group.create_dataset(NAME_DATASET, data=features)
 
 
-def generate_crop_features_from_detections(
+def generate_features_from_detections(
     clip_weight: Path,
     h5_file_frame_id_to_detection_output: Path,
     frame_folder: Path,
@@ -68,4 +79,4 @@ def generate_crop_features_from_detections(
             for i_sample, frame_id in enumerate(frame_ids_batch)
         }
 
-        append_detections_features_to_hdf5(frame_id_to_features, h5_file)
+        _append_features_detection_to_hdf5(frame_id_to_features, h5_file)
