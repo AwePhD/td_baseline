@@ -7,8 +7,8 @@ import pandas as pd
 import torch
 from irra.model.clip_model import CLIP
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from .cuhk_sysu_pedes import read_annotations_csv
 from .data_struct import CropIndex
 from .models.clip import load_clip
 from .models.tokenizer import SimpleTokenizer, tokenize
@@ -62,11 +62,12 @@ def _compute_text_features(
         tokens,  # type: ignore
         batch_size=token_batch_size,
         collate_fn=_collate_tokens_dataloader,
+        pin_memory=True,
     )
 
     crop_indexes: List[CropIndex] = []
     features_text = []
-    for batch in tokens_dataloader:
+    for batch in tqdm(tokens_dataloader):
         batch_crop_indexes, batch_tokens = batch
 
         crop_indexes.extend(batch_crop_indexes)
@@ -94,7 +95,7 @@ def _compute_text_features(
 
 def generate_text_features_to_h5(
     weight_file: Path,
-    data_folder: Path,
+    annotations_file: Path,
     token_batch_size: int,
     vocab_file: Path,
     h5_file: Path,
@@ -102,7 +103,7 @@ def generate_text_features_to_h5(
     if not confirm_generation(h5_file):
         return
 
-    annotations = read_annotations_csv(data_folder).dropna()
+    annotations = pd.read_parquet(annotations_file).dropna()
     model = load_clip(weight_file).eval().cuda()
 
     crop_index_to_text_features = _compute_text_features(

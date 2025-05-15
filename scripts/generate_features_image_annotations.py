@@ -1,19 +1,21 @@
 from pathlib import Path
 
-from tdbaseline.crop_features import generate_bboxes_clip_features_from_detections
 from tdbaseline.config import build_path, get_config
+from tdbaseline.crop_features.from_dataset import (
+    generate_crop_features_from_annotations,
+)
 
 
 def main():
     config = get_config(Path("./config.yaml"))
 
-    generate_bboxes_clip_features_from_detections(
+    generate_crop_features_from_annotations(
         build_path(config["models"]["clip"]["weight_path"]),
+        build_path(config["data"]["annotations"]),
         build_path(config["data"]["frames_folder"]),
-        build_path(config["h5_files"]["detection_output"]),
-        config["process"]["frames_batch_size"],
+        config["process"]["crops_batch_size"],
         config["process"]["num_workers"],
-        build_path(config["h5_files"]["bboxes_clip_features"]),
+        build_path(config["h5_files"]["crop_features_from_annotations"]),
     )
 
 

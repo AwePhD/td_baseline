@@ -42,26 +42,28 @@ def import_detections_from_h5(h5_file: Path) -> Dict[int, Detections]:
         Dict[Path, DetectionOutput]: map between file object and model outputs.
     """
     with h5py.File(h5_file, "r") as in_file:
-        frame_path_to_detections = {
-            frame_id: Detections(
+        frame_id_to_detections = {
+            int(frame_id): Detections(
                 detections[Detections._fields[0]][...],
                 detections[Detections._fields[1]][...],
                 detections[Detections._fields[2]][...],
             )
             for frame_id, detections in in_file.items()
         }
-    return frame_path_to_detections
+    return frame_id_to_detections
 
 
 def generate_detections_to_h5(
     config_file: Path,
     weight_file: Path,
+    annotations_json: Path,
+    root_folder: Path,
     h5_file: Path,
 ) -> None:
     if not confirm_generation(h5_file):
         return
 
-    model = PSTR(config_file, weight_file)
+    model = PSTR(config_file, annotations_json, root_folder, weight_file)
 
     frame_id_to_detections = _compute_detections(model)
     _export_detections_to_h5(frame_id_to_detections, h5_file)

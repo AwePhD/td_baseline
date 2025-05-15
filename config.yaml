@@ -1,11 +1,11 @@
 models:
   clip:
-    weight_path: '~/models/clip_finetuned/clip_finetune.pth'
-    vocab_path: '~/models/clip_finetuned/bpe_simple_vocab_16e6.txt.gz'
+    weight_path: '~/models/clip_reid/csu_f0_eitc.pth'
+    vocab_path: '~/models/clip_reid/bpe_simple_vocab_16e6.txt.gz'
   pstr:
     # Also edit data_root and data.test
     config_path: './configs/pstr/tdbaseline.py'
-    weight_path: '~/models/pstr_resnet_cuhk/pstr_r50_cuhk_origin.pth'
+    weight_path: '~/models/pstr_OG/pstr_r50_cuhk_origin.pth'
 
 process:
   tokens_batch_size: 512
@@ -15,20 +15,18 @@ process:
 
 eval:
   detection_reid:
-    threshold: .25
     weight: .5
 
 data:
-  root_folder: '~/data/cuhk_sysu_pedes/mmlab'
-  annotations: '~/data/cuhk_sysu_pedes/mmlab/annotations/test.csv'
+  root_folder: '~/data/csu3'
+  annotations: '~/data/csu3/annotations/test.parquet'
   annotations_json: './outputs/test.json'
-  frames_folder: '~/data/cuhk_sysu_pedes/mmlab/test'
-  crops_folder: '~/data/csu/crops'
+  frames_folder: '~/data/csu3/test'
+  crops_folder: '~/data/csu3/crops'
 
 h5_files:
-  features_text: './outputs/crop-index_to_features_text.h5'
+  crop_features_from_annotations: './outputs/crop-index_to_crop_features_from_annotations.h5'
+  crop_features_from_detections: './outputs/frame-id_to_crop_features_from_detections.h5'
+  crop_features_from_files: './outputs/crop-index_to_crop_features_from_files.h5'
   detections: './outputs/frame-id_to_detections.h5'
-  crop_features_from_files: './outputs/crop_index_to_crop_features_from_files.h5'
-  crop_features_from_annotations: './outputs/crop_index_to_crop_features_from_annotations.h5'
-  crop_features_from_detections: './outputs/crop_index_to_crop_features_from_detections.h5'
-  bboxes_clip_features: './outputs/frame_id_to_bboxes_clip_features.h5'
+  features_text: './outputs/crop-index_to_features_text.h5'

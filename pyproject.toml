@@ -12,6 +12,11 @@ requires-python = "~= 3.8"
 dynamic = ["version"]
 classifiers = [ "Programming Language :: Python :: 3", ]
 
+dependencies = [
+  "pandas == 2.0.2",
+  "fastparquet == 2024.2.0",
+]
+
 [project.urls]
 "Homepage" = "https://github.com/AwePhD/td_baseline"
 

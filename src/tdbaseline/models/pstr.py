@@ -21,11 +21,18 @@ class PSTR:
     - It can run infer that outputs PSTR result for the whole dataset.
     """
 
-    def _load_config(self, config_file: Path) -> mmcv.Config:
+    def _load_config(
+        self, config_file: Path, annotations_json: Path, root_folder: Path
+    ) -> mmcv.Config:
+        assert root_folder.exists() and annotations_json.exists()
         cfg = mmcv.Config.fromfile(config_file)
+        cfg.data.test.ann_file = str(annotations_json)
+        cfg.data.test.img_prefix = f"{root_folder}/test"
         cfg.model.pretrained = None
         cfg.data.test.test_mode = True
         cfg.model.train_cfg = None
+        print("Config in use:")
+        print(cfg.pretty_text)
 
         return cfg
 
@@ -52,11 +59,19 @@ class PSTR:
 
         return MMDataParallel(model, device_ids=[0])
 
-    def __init__(self, config_file: Path, weight_file: Path) -> None:
+    def __init__(
+        self,
+        config_file: Path,
+        annotations_json: Path,
+        root_folder: Path,
+        weight_file: Path,
+    ) -> None:
         assert weight_file.exists()
         assert config_file.exists()
 
-        self.config = self._load_config(config_file)
+        self.config = self._load_config(
+            config_file, annotations_json, root_folder
+        )
         self.dataloader = self._load_dataloader()
         self.model = self._load_model(weight_file)
 
@@ -64,7 +79,7 @@ class PSTR:
         results: Dict[int, np.ndarray] = {}
         for data in tqdm(self.dataloader):
             frame_id = extract_int_from_str(
-                data["img_metas"][0].data[0][0]["filename"]
+                data["img_metas"][0].data[0][0]["filename"].split("/")[-1]
             )
             with torch.no_grad():
                 results[frame_id] = self.model(

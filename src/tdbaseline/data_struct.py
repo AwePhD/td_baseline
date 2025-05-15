@@ -31,7 +31,8 @@ class CropIndex(NamedTuple):
 class Query(NamedTuple):
     frame_id: int
     frame_output: FrameOutput
-    captions_output: CaptionsOutput
+    # (2, d_CLIP)
+    captions_output: np.ndarray
     # (4,)
     gt_bbox: np.ndarray
 

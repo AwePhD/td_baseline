@@ -1,4 +1,3 @@
-# generate_captions_output.py edition
 from pathlib import Path
 
 from tdbaseline.config import build_path, get_config

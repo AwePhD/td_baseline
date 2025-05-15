@@ -10,6 +10,8 @@ def main():
     generate_detections_to_h5(
         build_path(config["models"]["pstr"]["config_path"]),
         build_path(config["models"]["pstr"]["weight_path"]),
+        build_path(config["data"]["annotations_json"]),
+        build_path(config["data"]["root_folder"]),
         build_path(config["h5_files"]["detections"]),
     )
 
