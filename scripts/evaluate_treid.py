@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from tdbaseline.config import get_config, build_path
-from tdbaseline.text_reid.eval import evaluate_treid_from_h5
+from tdbaseline.eval.treid import evaluate_treid_from_h5
 
 
 def main():

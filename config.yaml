@@ -8,8 +8,8 @@ process.crops_batch_size: 256
 process.frames_batch_size: 3
 process.num_workers: 2
 
-eval.detection_reid.weight: .5
-eval.detection_reid.threshold: .25
+eval.alpha: .5
+eval.threshold: .25
 
 data.root_folder: '~/data/csu3'
 data.annotations: '~/data/csu3/annotations/test.parquet'

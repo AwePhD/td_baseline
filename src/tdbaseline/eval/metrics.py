@@ -46,17 +46,6 @@ def compute_average_precision(labels: np.ndarray, scores: np.ndarray) -> float:
     return precisions_at_delta_recall.mean()
 
 
-def compute_average_precision_with_recall_penality(
-    labels: np.ndarray,
-    scores: np.ndarray,
-    count_gt: int,
-):
-    count_tp = labels.sum()
-    recall_rate_penality = count_tp / count_gt
-
-    return compute_average_precision(labels, scores) * recall_rate_penality
-
-
 def compute_mean_average_precision(labels: Tensor, scores: Tensor) -> float:
     # (n_queries, n_galleries)
     indices_by_scores = scores.argsort(axis=1, descending=True)

@@ -1,30 +1,18 @@
 from pathlib import Path
-from typing import Dict, List, NamedTuple
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
 from ..data_struct import Detections
-from ..ious import compute_ious
-from ..metrics import compute_average_precision, normalize
 from ..pstr_output import import_detections_from_h5
+from .common import AnnotationsRow, Sample, build_sample
+from .ious import compute_ious
+from .metrics import compute_average_precision, normalize
 
 
-class Sample(NamedTuple):
-    scores: np.ndarray
-    labels: np.ndarray
-
-
-class AnnotationsRow(NamedTuple):
-    Index: int
-    bbox_x: int
-    bbox_y: int
-    bbox_w: int
-    bbox_h: int
-
-
-def _get_representations_query(
+def _get_representation_query(
     annotations_query: pd.Series,
     detections_query: Detections,
 ) -> np.ndarray:
@@ -37,9 +25,9 @@ def _get_representations_query(
     i_best_output = ious_query.argmax()
 
     # (d_PSTR)
-    query_features = detections_query.features_pstr[i_best_output]
+    representation_query = detections_query.features_pstr[i_best_output]
 
-    return query_features
+    return representation_query
 
 
 def _build_sample(
@@ -48,7 +36,7 @@ def _build_sample(
     frame_id_to_detections: Dict[int, Detections],
 ) -> Sample:
     annotations_query = annotations_sample.query("split == 'query'").squeeze()
-    representations_query = _get_representations_query(
+    representations_query = _get_representation_query(
         annotations_query,
         frame_id_to_detections[annotations_query.frame_id],
     )
@@ -76,7 +64,7 @@ def _build_sample(
             detection_is_positive
         ]
 
-        # [1, n_positive] -squeeze()-> [n_positive]
+        # [1, n_positive] -squeeze(0)-> [n_positive]
         similarities_frame: np.ndarray = np.einsum(
             "nd,md->nm",
             normalize(representations_query),
@@ -132,12 +120,21 @@ def evaluate_dreid_from_h5(
     recall_sum = 0.0
     n_positive_detections_sum = 0
     for i, annotations_sample in tqdm(annotations_samples):
-        if i in [484, 1226, 1489, 3091, 4667, 10354]:
-            continue
-        sample = _build_sample(
+        frame_id_to_features_detections = {
+            frame_id: detections.features_pstr
+            for frame_id, detections in frame_id_to_detections.items()
+        }
+        annotations_query = annotations_sample.query("split == 'query'").squeeze()
+        representation_query = _get_representation_query(
+            annotations_query,
+            frame_id_to_detections[annotations_query.frame_id],
+        )
+        sample = build_sample(
+            representation_query,
             annotations_sample,
             threshold,
             frame_id_to_detections,
+            frame_id_to_features_detections,
         )
 
         n_gt = annotations_sample.query("split == 'gallery'").notna().all(axis=1).sum()  # type: ignore
