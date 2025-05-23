@@ -5,6 +5,7 @@ import h5py
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn.functional as F
 from irra.model.clip_model import CLIP
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -66,7 +67,7 @@ def _compute_text_features(
     )
 
     crop_indexes: List[CropIndex] = []
-    features_text = []
+    features_text_batch: List[torch.Tensor] = []
     for batch in tqdm(tokens_dataloader):
         batch_crop_indexes, batch_tokens = batch
 
@@ -74,16 +75,13 @@ def _compute_text_features(
 
         with torch.no_grad():
             tokens_features: torch.Tensor
+            # tokens_features = model.encode_text(batch_tokens.cuda()).cpu()
             tokens_features = model.encode_text(batch_tokens.cuda()).cpu()
         # Prends le token de <END_OF_SEQUENCE> => CLASS TOKEN
-        features_text.extend(
-            tokens_features[
-                torch.arange(tokens_features.shape[0]),
-                batch_tokens.argmax(dim=-1),
-            ]
-            .float()
-            .numpy()
+        features_text_batch.append(
+            tokens_features[ torch.arange(tokens_features.shape[0]), batch_tokens.argmax(dim=-1), ] .float()
         )
+    features_text = F.normalize(torch.cat(features_text_batch)).numpy()
     assert len(crop_indexes) == len(features_text)
 
     n_samples = len(crop_indexes)
