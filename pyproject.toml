@@ -37,5 +37,6 @@ non-cap = [
 ]
 
 [tool.isort]
+profile = "black"
 include_trailing_comma = true
 multi_line_output = 3

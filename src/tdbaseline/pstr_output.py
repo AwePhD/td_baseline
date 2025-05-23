@@ -83,8 +83,8 @@ def _compute_detections(model: PSTR) -> Dict[int, Detections]:
 
     return {
         frame_id: Detections(
-            scores=result[:, 4],
             bboxes=result[:, :4],
+            scores=result[:, 4],
             features_pstr=result[:, 5:],
         )
         for frame_id, result in results_by_path.items()

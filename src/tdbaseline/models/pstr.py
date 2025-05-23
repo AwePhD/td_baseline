@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from mmcv.parallel import MMDataParallel
 from mmcv.runner import load_checkpoint
-from mmdet.datasets import build_dataloader, build_dataset
+from mmdet.datasets import build_dataloader, build_dataset, replace_ImageToTensor
 from mmdet.models import build_detector
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -28,8 +28,18 @@ class PSTR:
         cfg = mmcv.Config.fromfile(config_file)
         cfg.data.test.ann_file = str(annotations_json)
         cfg.data.test.img_prefix = f"{root_folder}/test"
+
         cfg.model.pretrained = None
+
+        samples_per_gpu = cfg.data.test.pop("samples_per_gpu", 1)
+        if samples_per_gpu > 1:
+            cfg.data.test.pipeline = replace_ImageToTensor(
+                cfg.data.test.pipeline
+            )
+        self.samples_per_gpu = samples_per_gpu
+
         cfg.data.test.test_mode = True
+
         cfg.model.train_cfg = None
         print("Config in use:")
         print(cfg.pretty_text)
@@ -40,8 +50,8 @@ class PSTR:
         dataset = build_dataset(self.config.data.test)
         dataloader = build_dataloader(
             dataset,
-            samples_per_gpu=1,
-            workers_per_gpu=1,
+            samples_per_gpu=self.samples_per_gpu,
+            workers_per_gpu=2,
             dist=False,
             shuffle=False,
         )

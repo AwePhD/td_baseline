@@ -1,307 +1,157 @@
 from pathlib import Path
-from typing import List, Generator, Dict, Optional, Tuple, Iterable
+from typing import Dict, List, NamedTuple
 
-from tqdm import tqdm
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
-from ..metrics import compute_average_precision_with_recall_penality
-from ..cuhk_sysu_pedes import import_test_annotations
-from ..captions_features import import_captions_output_from_hdf5
-from ..data_struct import Sample, CropIndex, Query, FrameOutput, GalleryFrame, DetectionOutput, Gallery
-from ..crop_features import import_bboxes_clip_features_from_hdf5
-from ..utils import gt_bboxes_from_annotations, extract_int_from_str
-from ..pstr_output import import_detection_output_from_hdf5
-from .compute_similarities import ComputeSimilarities
+from ..data_struct import Detections
+from ..ious import compute_ious
+from ..metrics import compute_average_precision, normalize
+from ..pstr_output import import_detections_from_h5
 
 
-GALLERY_SIZE = 100
+class Sample(NamedTuple):
+    scores: np.ndarray
+    labels: np.ndarray
 
 
-def _load_samples(
-    annotations: pd.DataFrame,
-    frame_file_to_detection_output: Dict[Path, DetectionOutput],
-    frame_id_to_bboxes_clip_features: Dict[int, np.ndarray],
-    crop_index_to_captions_output: Dict[CropIndex, np.ndarray]
-) -> Generator[Sample, None, None]:
-    frame_id_to_detection_output = {
-        extract_int_from_str(frame_file.name): detection_output
-        for frame_file, detection_output in frame_file_to_detection_output.items()
-    }
-
-    for _, annotation_sample in annotations.groupby("person_id"):
-        sample_gt_bboxes = gt_bboxes_from_annotations(annotation_sample)
-
-        query_index = CropIndex(
-            *annotation_sample.query("type == 'query'").index[0])
-        query = Query(
-            query_index.frame_id,
-            FrameOutput(
-                frame_id_to_detection_output[query_index.frame_id].scores,
-                frame_id_to_detection_output[query_index.frame_id].bboxes,
-                frame_id_to_detection_output[query_index.frame_id].features_pstr,
-                frame_id_to_bboxes_clip_features[query_index.frame_id],
-            ),
-            crop_index_to_captions_output[query_index],
-            sample_gt_bboxes[query_index]
-        )
-
-        gallery_annotations = annotation_sample.query("type == 'gallery'")
-        gallery = [
-            GalleryFrame(
-                frame_id,
-                FrameOutput(
-                    frame_id_to_detection_output[frame_id].scores,
-                    frame_id_to_detection_output[frame_id].bboxes,
-                    frame_id_to_detection_output[frame_id].features_pstr,
-                    frame_id_to_bboxes_clip_features[frame_id],
-                ),
-                sample_gt_bboxes[(person_id, frame_id)]
-                if (person_id, frame_id) in sample_gt_bboxes.keys()
-                else None
-            )
-            for person_id, frame_id in gallery_annotations.index
-        ]
-
-        yield Sample(query_index.person_id, query, gallery)
+class AnnotationsRow(NamedTuple):
+    Index: int
+    bbox_x: int
+    bbox_y: int
+    bbox_w: int
+    bbox_h: int
 
 
-def _compute_ious(
-    output_bboxes: np.ndarray,
-    gt_bbox: np.ndarray,
+def _get_representations_query(
+    annotations_query: pd.Series,
+    detections_query: Detections,
 ) -> np.ndarray:
-    """
-    Compute IoUs between bboxes from model and its GT.
+    # (4,)
+    gt_x, gt_y, gt_w, gt_h = annotations_query[
+        ["bbox_x", "bbox_y", "bbox_w", "bbox_h"]
+    ].astype("Int32")
+    bbox_gt_query = np.array([gt_x, gt_y, gt_x + gt_w, gt_y + gt_h])
+    ious_query = compute_ious(detections_query.bboxes, bbox_gt_query)
+    i_best_output = ious_query.argmax()
 
-    output_bboxes (np.ndarray): (N_BBOXES, 4) tensor of bboxes from model
-    gt_bbox (np.ndarray): (4,) Ground Truth bbox from annotation
-    return: the index of the best matching (highest IoU) model bbox
-    """
-    # 1. calculate the inters coordinate
-    ixmin = np.maximum(output_bboxes[:, 0], gt_bbox[0])
-    ixmax = np.minimum(output_bboxes[:, 2], gt_bbox[2])
-    iymin = np.maximum(output_bboxes[:, 1], gt_bbox[1])
-    iymax = np.minimum(output_bboxes[:, 3], gt_bbox[3])
+    # (d_PSTR)
+    query_features = detections_query.features_pstr[i_best_output]
 
-    iw = np.maximum(ixmax - ixmin + 1., 0.)
-    ih = np.maximum(iymax - iymin + 1., 0.)
-
-    # 2.calculate the area of inters
-    inters = iw * ih
-
-    # 3.calculate the area of union
-    unions = (
-        (output_bboxes[:, 2] - output_bboxes[:, 0] + 1.)
-        * (output_bboxes[:, 3] - output_bboxes[:, 1] + 1.)
-        + (gt_bbox[2] - gt_bbox[0] + 1.) * (gt_bbox[3] - gt_bbox[1] + 1.)
-        - inters
-    )
-
-    # 4.calculate the overlaps and find the max overlap ,the max overlaps index for pred_box
-    return inters / unions
+    return query_features
 
 
-def _get_features_of_best_output_bbox(
-    query: Query
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-     Filter query bbox output (does not depend upon captions)
-     1 Select bbox with best IoU compared to gt
-     2 Normalize its image features
-    """
-    i_best_match = np.argmax(_compute_ious(
-        query.frame_output.bboxes, query.gt_bbox))
-
-    return (
-        query.frame_output.features_pstr[i_best_match],
-        query.frame_output.features_clip[i_best_match],
-    )
-
-
-def _check_bboxes_match(
-    output_bboxes: np.ndarray,
-    gt_bbox: np.ndarray
-) -> Optional[int]:
-    """
-    Check if one of the bbox outputs matche the GT.
-    Return None if none of them match
-    """
-    width, height = gt_bbox[2] - gt_bbox[0], gt_bbox[3] - gt_bbox[1]
-    iou_threshold = min(0.5, (width * height) / ((width + 10) * (height + 10)))
-    ious = _compute_ious(output_bboxes, gt_bbox)
-
-    for i, iou in enumerate(ious):
-        if iou > iou_threshold:
-            return i
-
-    return None
-
-
-def _compute_labels_scores_for_one_gallery_frame(
-    frame: GalleryFrame,
-    query_text_features: np.ndarray,
-    query_crop_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
-    compute_similarities: ComputeSimilarities,
+def _build_sample(
+    annotations_sample: pd.DataFrame,
     threshold: float,
-) -> Tuple[float, float]:
-    """
-    1 Keep detections above a certain thresholds
-    pass to the next element
-        => If there is no detections remaining, return None.
-    2 Normalize image feautres
-    3 Build Similarity matrix
-      NOTE: This is here that we can introduce different method
-    4 Does not have the query person in frame
-        => Return labels with only False and similarities
-    5 Determine by IoU if a bbox can be considered as TP
-       5.1 Compute IoU threshold based on height and width of GT bbox
-       5.2 Compute IoU between GT and outputs,
-       consider the best IoU score superior to the threshold as TP.
-       If no IoU scores is above the threshold => all FPs.
-       5.3 If there is a TP set its label to True
-        => Return labels and similarities
-    """
-    kept_index = frame.frame_output.scores >= threshold
-
-    n_result = kept_index.sum()
-    if n_result == 0:
-        return None
-
-    # [n_result, 512]
-    crops_features_pstr_clip = (
-        frame.frame_output.features_pstr[kept_index],
-        frame.frame_output.features_clip[kept_index],
+    frame_id_to_detections: Dict[int, Detections],
+) -> Sample:
+    annotations_query = annotations_sample.query("split == 'query'").squeeze()
+    representations_query = _get_representations_query(
+        annotations_query,
+        frame_id_to_detections[annotations_query.frame_id],
     )
 
-    # [n_result]
-    similarities = compute_similarities(
-        query_crop_features_pstr_clip,
-        query_text_features,
-        crops_features_pstr_clip,
-    )
+    similarities_sample: List[np.ndarray] = []
+    labels_sample: List[np.ndarray] = []
+    annotations_gallery = annotations_sample.query("split == 'gallery'")[
+        ["frame_id", "bbox_x", "bbox_y", "bbox_w", "bbox_h"]
+    ].astype("Int32")
+    for annotations_frame in annotations_gallery.itertuples(index=False):
+        frame_id, gt_x, gt_y, gt_w, gt_h = AnnotationsRow(*annotations_frame)
+        detections_frame = frame_id_to_detections[frame_id]
 
-    labels = np.zeros(n_result, dtype=bool)
+        # [n_outputs=100]
+        detection_is_positive = detections_frame.scores >= threshold
+        n_positive = detection_is_positive.sum()
 
-    # No query person inside the gallery frame
-    if frame.gt_bbox is None:
-        return labels, similarities
-
-    # [n_result]
-    # NOTE: Tricky part
-    # We prioritize the matching by starting with the best IoU
-    # Also we have to reorder the similarites because i_bbox
-    # is an index based on the similarities decreasing order!
-    # If we don't, the similarities does not match their labels anymore
-    indices_by_similarities = similarities.argsort()[::-1]
-    ranked_similarities = similarities[indices_by_similarities]
-    ranked_bboxes = frame.frame_output.bboxes[kept_index][indices_by_similarities]
-    i_bbox = _check_bboxes_match(
-        ranked_bboxes,
-        frame.gt_bbox)
-    if i_bbox is not None:
-        labels[i_bbox] = True
-
-    return labels, ranked_similarities
-
-
-def _evaluate_one_query_for_one_sample(
-    gallery: Gallery,
-    query_text_features: np.ndarray,
-    query_crop_features_pstr_clip: Tuple[np.ndarray, np.ndarray],
-    compute_similarities: ComputeSimilarities,
-    threshold: float
-) -> float:
-    """
-    1. Init labels and scores variables for the sample. They
-    respectively denote the positions of the GTs among the detections results
-    and the score of the results.
-    2. For each frame in gallery, get scores and labels of the search
-    3. Gather results from every searches in gallery.
-    """
-    labels_temp: List[np.ndarray] = []
-    scores_temp: List[np.ndarray] = []
-
-    for gallery_frame in gallery:
-        # (labels, scores) for the gallery frame OR None
-        result = _compute_labels_scores_for_one_gallery_frame(
-            gallery_frame,
-            query_text_features,
-            query_crop_features_pstr_clip,
-            compute_similarities,
-            threshold
-        )
-        if result is None:
+        if n_positive == 0:
             continue
 
-        # Add one dim to be able to concatenate them
-        labels_temp.append(result[0].reshape(1, -1))
-        scores_temp.append(result[1].reshape(1, -1))
+        # [n_positive, 4]
+        bboxes_positive = detections_frame.bboxes[detection_is_positive]
+        # [n_positive, d_PSTR]
+        features_detection_positive = detections_frame.features_pstr[
+            detection_is_positive
+        ]
 
-    labels = np.concatenate(labels_temp, axis=1).ravel()
-    scores = np.concatenate(scores_temp, axis=1).ravel()
+        # [1, n_positive] -squeeze()-> [n_positive]
+        similarities_frame: np.ndarray = np.einsum(
+            "nd,md->nm",
+            normalize(representations_query),
+            normalize(features_detection_positive),
+        ).squeeze(0)
+        labels_frame = np.zeros(n_positive, dtype=bool)
 
-    count_gt = sum(frame.gt_bbox is not None for frame in gallery)
+        # No search for ReID positive if no annotations
+        if pd.isna(gt_x):
+            similarities_sample.append(similarities_frame)
+            labels_sample.append(labels_frame)
+            continue
 
-    return compute_average_precision_with_recall_penality(labels, scores, count_gt)
+        threshold_iou = min(0.5, (gt_w * gt_h) / ((gt_w + 10) * (gt_h + 10)))
+        bbox_gt_frame = np.array([gt_x, gt_y, gt_x + gt_w, gt_y + gt_h])
+        # [n_positive]
+        ious = compute_ious(bboxes_positive, bbox_gt_frame)
+        if (ious < threshold_iou).all():
+            similarities_sample.append(similarities_frame)
+            labels_sample.append(labels_frame)
+            continue
+
+        # [n_positive]
+        i_similarities_sorted = similarities_frame.argsort()[::-1]  # descend!
+        for i_positive in i_similarities_sorted:
+            if ious[i_positive] >= threshold_iou:
+                labels_frame[i_positive] = True
+                break
+
+        similarities_sample.append(similarities_frame)
+        labels_sample.append(labels_frame)
+
+    return Sample(
+        scores=np.concatenate(similarities_sample),
+        labels=np.concatenate(labels_sample),
+    )
 
 
-def _evaluate_one_sample(
-    sample: Sample,
-    compute_similarities: ComputeSimilarities,
+def evaluate_dreid_from_h5(
+    annotations_file: Path,
     threshold: float,
-) -> Tuple[float, float]:
-    """
-     1. Get query image features
-     2. Evaluate two searches - 2 mAP values. One search by caption
-     3. Return both mAPs
-    """
-    query_crop_features_pstr_clip = _get_features_of_best_output_bbox(
-        sample.query)
+    detections_file_h5: Path,
+) -> None:
+    assert annotations_file.exists()
+    assert detections_file_h5.exists()
 
-    return tuple(
-        _evaluate_one_query_for_one_sample(
-            sample.gallery,
-            caption_features,
-            query_crop_features_pstr_clip,
-            compute_similarities,
-            threshold
+    annotations = pd.read_parquet(annotations_file).reset_index()
+    annotations_samples = annotations.groupby("person_id")
+
+    frame_id_to_detections = import_detections_from_h5(detections_file_h5)
+
+    AP_sum = 0.0
+    recall_sum = 0.0
+    n_positive_detections_sum = 0
+    for i, annotations_sample in tqdm(annotations_samples):
+        if i in [484, 1226, 1489, 3091, 4667, 10354]:
+            continue
+        sample = _build_sample(
+            annotations_sample,
+            threshold,
+            frame_id_to_detections,
         )
-        for caption_features in sample.query.captions_output
+
+        n_gt = annotations_sample.query("split == 'gallery'").notna().all(axis=1).sum()  # type: ignore
+        n_positive_reid = sample.labels.sum()
+        recall_sample = n_positive_reid / n_gt
+
+        n_positive_detections_sum += len(sample.scores)
+        recall_sum += recall_sample
+        AP_sum += recall_sample * compute_average_precision(
+            sample.labels, sample.scores
+        )
+    mAP = AP_sum / len(annotations_samples)
+    mean_recall = recall_sum / len(annotations_samples)
+    n_positive_mean = int(n_positive_detections_sum / len(annotations_samples))
+    print(
+        f"mAP: {mAP:.2%}, recall: {mean_recall:.2%}, n_pos: {n_positive_mean:,d}"
     )
-
-
-def import_data(
-    data_folder: Path,
-    frames_folder: Path,
-    h5_captions_output_file: Path,
-    h5_detection_output: Path,
-    h5_bboxes_clip_features: Path,
-) -> Generator[Sample, None, None]:
-    annotations = import_test_annotations(data_folder)
-    crop_index_to_captions_output = (
-        import_captions_output_from_hdf5(h5_captions_output_file))
-    frame_file_to_detection_output = (
-        import_detection_output_from_hdf5(h5_detection_output, frames_folder))
-    frame_id_to_bboxes_clip_features = (
-        import_bboxes_clip_features_from_hdf5(h5_bboxes_clip_features))
-
-    return _load_samples(
-        annotations,
-        frame_file_to_detection_output,
-        frame_id_to_bboxes_clip_features,
-        crop_index_to_captions_output
-    )
-
-
-def compute_mean_average_precision(
-    samples: Iterable[Sample],
-    compute_similarities: ComputeSimilarities,
-    threshold: float,
-) -> float:
-    average_precisions: List[float] = []
-
-    for sample in tqdm(samples):
-        average_precisions.extend(
-            _evaluate_one_sample(sample, compute_similarities, threshold))
-
-    return np.mean(average_precisions)

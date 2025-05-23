@@ -8,7 +8,7 @@ class Detections(NamedTuple):
     scores: np.ndarray
     # (100, 4)
     bboxes: np.ndarray
-    # (100, 512)
+    # (100, 256*3)
     features_pstr: np.ndarray
 
 

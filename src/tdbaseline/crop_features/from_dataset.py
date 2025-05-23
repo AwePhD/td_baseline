@@ -17,6 +17,7 @@ import h5py
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn.functional as F
 from irra.model.clip_model import CLIP
 from PIL import Image
 from PIL.Image import Image as ImageType
@@ -83,7 +84,7 @@ def _from_files(
             compute_clip_features_from_crops(model, crops_batch)
         )
     # (n_crops, d_CLIP)
-    all_features = torch.cat(all_features_list).numpy()
+    all_features = F.normalize(torch.cat(all_features_list)).numpy()
 
     return {
         crop_index_from_filename(crop_path.name): features
