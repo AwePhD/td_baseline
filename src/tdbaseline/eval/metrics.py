@@ -62,6 +62,8 @@ def compute_mean_average_precision(labels: Tensor, scores: Tensor) -> float:
         "qg,qg->q", precisions, labels_ranked.float()
     )
     # (n_queries)
-    average_precisions = precisions_at_delta_recall / labels.sum(1)
+    average_precisions = torch.nan_to_num(  # nan because labels are 0 -> no TP detected for the query
+        precisions_at_delta_recall / labels.sum(1), nan=0
+    )
 
     return average_precisions.mean().item()
