@@ -6,7 +6,11 @@ import numpy as np
 import torch
 from mmcv.parallel import MMDataParallel
 from mmcv.runner import load_checkpoint
-from mmdet.datasets import build_dataloader, build_dataset, replace_ImageToTensor
+from mmdet.datasets import (
+    build_dataloader,
+    build_dataset,
+    replace_ImageToTensor,
+)
 from mmdet.models import build_detector
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -87,7 +91,7 @@ class PSTR:
 
     def infer(self) -> Dict[int, np.ndarray]:
         results: Dict[int, np.ndarray] = {}
-        for data in tqdm(self.dataloader):
+        for data in tqdm(self.dataloader, leave=False):
             frame_id = extract_int_from_str(
                 data["img_metas"][0].data[0][0]["filename"].split("/")[-1]
             )

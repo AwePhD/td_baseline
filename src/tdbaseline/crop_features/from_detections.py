@@ -60,7 +60,7 @@ def generate_features_from_detections(
         num_workers=num_workers,
     )
 
-    for frame_ids_batch in tqdm(dataloader):
+    for frame_ids_batch in tqdm(dataloader, leave=False):
         frame_ids_batch = frame_ids_batch.tolist()
         crops_batch: List[Image_T] = []
         for frame_id in frame_ids_batch:

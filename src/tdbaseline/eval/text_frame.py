@@ -30,7 +30,10 @@ def _get_representation_queries(
     crops_features_positive = normalize(crops_features[detection_is_positive])
     # NOTE: representation_text_query is already normalized
     # [n_outputs=100, d_CLIP]
-    crops_representations = (alpha * representation_text_query + (1 - alpha) * crops_features_positive)
+    crops_representations = (
+        alpha * representation_text_query
+        + (1 - alpha) * crops_features_positive
+    )
 
     # [n_positive, 4]
     bboxes_positive = detections.bboxes[detection_is_positive]
@@ -46,7 +49,7 @@ def _get_representation_queries(
     if not (detection_reid_is_positive).any():
         return None
     i_best_output = ious.argmax()
-    
+
     query_representation = crops_representations[i_best_output]
     return query_representation
 
@@ -75,7 +78,9 @@ def evaluate_text_frame_from_h5(
     n_queries = 0
     recall_gallery_sum = 0.0
     n_positive_detections_sum = 0
-    for person_id, annotations_sample in tqdm(annotations_samples):
+    for person_id, annotations_sample in tqdm(
+        annotations_samples, leave=False
+    ):
         annotations_query = annotations_sample.query(
             "split == 'query'"
         ).squeeze()

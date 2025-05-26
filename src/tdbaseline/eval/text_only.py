@@ -12,7 +12,6 @@ from .common import build_sample
 from .metrics import compute_average_precision
 
 
-
 def evaluate_text_only_from_h5(
     annotations_file: Path,
     threshold: float,
@@ -36,7 +35,9 @@ def evaluate_text_only_from_h5(
     n_positive_detections_sum = 0
     # 2*len(annotations_samples) is a bit hard to guess why, so we count the query manually
     n_queries = 0
-    for person_id, annotations_sample in tqdm(annotations_samples):
+    for person_id, annotations_sample in tqdm(
+        annotations_samples, leave=False
+    ):
         frame_id_query = (
             annotations_sample.query("split == 'query'").squeeze().frame_id
         )

@@ -40,7 +40,7 @@ def eval_dreid(
     AP_sum = 0.0
     recall_sum = 0.0
     n_positive_detections_sum = 0
-    for i, annotations_sample in tqdm(annotations_samples):
+    for i, annotations_sample in tqdm(annotations_samples, leave=False):
         frame_id_to_features_detections = {
             frame_id: detections.features_pstr
             for frame_id, detections in frame_id_to_detections.items()

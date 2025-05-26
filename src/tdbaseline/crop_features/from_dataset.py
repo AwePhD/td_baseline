@@ -79,7 +79,7 @@ def _from_files(
         collate_fn=lambda batch: batch,
     )
     all_features_list: List[torch.Tensor] = []
-    for crops_batch in tqdm(crops_dataloader):
+    for crops_batch in tqdm(crops_dataloader, leave=False):
         all_features_list.append(
             compute_clip_features_from_crops(model, crops_batch)
         )
@@ -120,7 +120,7 @@ def _from_annotations(
         collate_fn=lambda batch: batch,
     )
     all_features_list: List[torch.Tensor] = []
-    for crops_batch in tqdm(crops_dataloader):
+    for crops_batch in tqdm(crops_dataloader, leave=False):
         all_features_list.append(
             compute_clip_features_from_crops(model, crops_batch)
         )
