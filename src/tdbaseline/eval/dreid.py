@@ -1,15 +1,19 @@
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from tdbaseline.crop_features.from_detections import (
+    import_features_detection_from_hdf5,
+)
+
 from ..data_struct import Detections
 from ..pstr_output import import_detections_from_h5
-from .common import AnnotationsRow, Sample, build_sample
+from .common import build_sample
 from .ious import compute_ious
-from .metrics import compute_average_precision, normalize
+from .metrics import compute_average_precision
 
 
 def _get_representation_query(
@@ -30,92 +34,9 @@ def _get_representation_query(
     return representation_query
 
 
-def _build_sample(
-    annotations_sample: pd.DataFrame,
-    threshold: float,
-    frame_id_to_detections: Dict[int, Detections],
-) -> Sample:
-    annotations_query = annotations_sample.query("split == 'query'").squeeze()
-    representations_query = _get_representation_query(
-        annotations_query,
-        frame_id_to_detections[annotations_query.frame_id],
-    )
-
-    similarities_sample: List[np.ndarray] = []
-    labels_sample: List[np.ndarray] = []
-    annotations_gallery = annotations_sample.query("split == 'gallery'")[
-        ["frame_id", "bbox_x", "bbox_y", "bbox_w", "bbox_h"]
-    ].astype("Int32")
-    for annotations_frame in annotations_gallery.itertuples(index=False):
-        frame_id, gt_x, gt_y, gt_w, gt_h = AnnotationsRow(*annotations_frame)
-        detections_frame = frame_id_to_detections[frame_id]
-
-        # [n_outputs=100]
-        detection_is_positive = detections_frame.scores >= threshold
-        n_positive = detection_is_positive.sum()
-
-        if n_positive == 0:
-            continue
-
-        # [n_positive, 4]
-        bboxes_positive = detections_frame.bboxes[detection_is_positive]
-        # [n_positive, d_PSTR]
-        features_detection_positive = detections_frame.features_pstr[
-            detection_is_positive
-        ]
-
-        # [1, n_positive] -squeeze(0)-> [n_positive]
-        similarities_frame: np.ndarray = np.einsum(
-            "nd,md->nm",
-            normalize(representations_query),
-            normalize(features_detection_positive),
-        ).squeeze(0)
-        labels_frame = np.zeros(n_positive, dtype=bool)
-
-        # No search for ReID positive if no annotations
-        if pd.isna(gt_x):
-            similarities_sample.append(similarities_frame)
-            labels_sample.append(labels_frame)
-            continue
-
-        threshold_iou = min(0.5, (gt_w * gt_h) / ((gt_w + 10) * (gt_h + 10)))
-        bbox_gt_frame = np.array([gt_x, gt_y, gt_x + gt_w, gt_y + gt_h])
-        # [n_positive]
-        ious = compute_ious(bboxes_positive, bbox_gt_frame)
-        if (ious < threshold_iou).all():
-            similarities_sample.append(similarities_frame)
-            labels_sample.append(labels_frame)
-            continue
-
-        # [n_positive]
-        i_similarities_sorted = similarities_frame.argsort()[::-1]  # descend!
-        for i_positive in i_similarities_sorted:
-            if ious[i_positive] >= threshold_iou:
-                labels_frame[i_positive] = True
-                break
-
-        similarities_sample.append(similarities_frame)
-        labels_sample.append(labels_frame)
-
-    return Sample(
-        scores=np.concatenate(similarities_sample),
-        labels=np.concatenate(labels_sample),
-    )
-
-
-def evaluate_dreid_from_h5(
-    annotations_file: Path,
-    threshold: float,
-    detections_file_h5: Path,
-) -> None:
-    assert annotations_file.exists()
-    assert detections_file_h5.exists()
-
-    annotations = pd.read_parquet(annotations_file).reset_index()
-    annotations_samples = annotations.groupby("person_id")
-
-    frame_id_to_detections = import_detections_from_h5(detections_file_h5)
-
+def eval_dreid(
+    annotations_samples, frame_id_to_detections, threshold: float
+) -> Tuple[float, float, int]:
     AP_sum = 0.0
     recall_sum = 0.0
     n_positive_detections_sum = 0
@@ -124,7 +45,9 @@ def evaluate_dreid_from_h5(
             frame_id: detections.features_pstr
             for frame_id, detections in frame_id_to_detections.items()
         }
-        annotations_query = annotations_sample.query("split == 'query'").squeeze()
+        annotations_query = annotations_sample.query(
+            "split == 'query'"
+        ).squeeze()
         representation_query = _get_representation_query(
             annotations_query,
             frame_id_to_detections[annotations_query.frame_id],
@@ -149,6 +72,67 @@ def evaluate_dreid_from_h5(
     mAP = AP_sum / len(annotations_samples)
     mean_recall = recall_sum / len(annotations_samples)
     n_positive_mean = int(n_positive_detections_sum / len(annotations_samples))
+    return mAP, mean_recall, n_positive_mean
+
+
+def evaluate_dreid_from_h5(
+    annotations_file: Path,
+    threshold: float,
+    detections_file_h5: Path,
+) -> None:
+    assert annotations_file.exists()
+    assert detections_file_h5.exists()
+
+    annotations = pd.read_parquet(annotations_file).reset_index()
+    annotations_samples = annotations.groupby("person_id")
+
+    frame_id_to_detections = import_detections_from_h5(detections_file_h5)
+
+    mAP, mean_recall, n_positive_mean = eval_dreid(
+        annotations_samples, frame_id_to_detections, threshold
+    )
+
+    print(
+        f"mAP: {mAP:.2%}, recall: {mean_recall:.2%}, n_pos: {n_positive_mean:,d}"
+    )
+
+
+def evaluate_dreid_clip_from_h5(
+    annotations_file: Path,
+    threshold: float,
+    detections_file_h5: Path,
+    automatic_crops_file_h5: Path,
+) -> None:
+    assert annotations_file.exists()
+    assert detections_file_h5.exists()
+    assert automatic_crops_file_h5.exists()
+
+    annotations = pd.read_parquet(annotations_file).reset_index()
+    annotations_samples = annotations.groupby("person_id")
+
+    frame_id_to_detections = import_detections_from_h5(detections_file_h5)
+    frame_id_to_features_clip = import_features_detection_from_hdf5(
+        automatic_crops_file_h5
+    )
+
+    assert set(frame_id_to_detections.keys()) == set(
+        frame_id_to_features_clip.keys()
+    )
+    frame_ids = sorted(frame_id_to_detections.keys())
+    frame_id_to_detections_automatic: Dict[int, Detections] = {}
+    for frame_id in frame_ids:
+        detections = frame_id_to_detections[frame_id]
+        features_clip = frame_id_to_features_clip[frame_id]
+        frame_id_to_detections_automatic[frame_id] = Detections(
+            scores=detections.scores,
+            bboxes=detections.bboxes,
+            features_pstr=features_clip,
+        )
+
+    mAP, mean_recall, n_positive_mean = eval_dreid(
+        annotations_samples, frame_id_to_detections_automatic, threshold
+    )
+
     print(
         f"mAP: {mAP:.2%}, recall: {mean_recall:.2%}, n_pos: {n_positive_mean:,d}"
     )
