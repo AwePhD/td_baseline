@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union, cast
+from typing import Tuple, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -61,7 +61,7 @@ def evaluate_text_frame_from_h5(
     crop_index_to_features_text_h5: Path,
     detections_file_h5: Path,
     automatic_crops_h5: Path,
-) -> None:
+) -> float:
     annotations = pd.read_parquet(annotations_file).reset_index()
     annotations_samples = annotations.groupby("person_id")
 
@@ -138,3 +138,5 @@ def evaluate_text_frame_from_h5(
         f"recall (gallery): {mean_recall_gallery:.2%}, "
         f"n_pos: {n_positive_mean:,d}"
     )
+
+    return mAP
