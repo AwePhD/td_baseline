@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from tdbaseline.config import get_config, build_path
+from tdbaseline.config import build_path, get_config
 from tdbaseline.eval.treid import evaluate_treid_from_h5
 
 
