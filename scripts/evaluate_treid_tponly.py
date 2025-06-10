@@ -12,7 +12,7 @@ def main():
         config["eval.threshold"],
         build_path(config["h5_files.features_text"]),
         build_path(config["h5_files.detections"]),
-        build_path(config["h5_files.crop_features_from_files"]),
+        build_path(config["h5_files.crop_features_from_annotations"]),
     )
 
 
