@@ -12,8 +12,31 @@ requires-python = "~= 3.8"
 dynamic = ["version"]
 classifiers = [ "Programming Language :: Python :: 3", ]
 
+dependencies = [
+  "pandas == 2.0.2",
+  "fastparquet == 2024.2.0",
+]
+
 [project.urls]
 "Homepage" = "https://github.com/AwePhD/td_baseline"
 
 [tool.hatch.version]
 path = "src/tdbaseline/__init__.py"
+
+[tool.black]
+line-length = 79
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.docformatter]
+black = true
+non-strict = false
+non-cap = [
+	"docformatter",
+]
+
+[tool.isort]
+profile = "black"
+include_trailing_comma = true
+multi_line_output = 3

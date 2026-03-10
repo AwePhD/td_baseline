@@ -1,18 +1,16 @@
-from typing import NamedTuple, List, Optional
+from typing import List, NamedTuple, Optional
 
 import numpy as np
 
-class DetectionOutput(NamedTuple):
+
+class Detections(NamedTuple):
     # (100,)
     scores: np.ndarray
     # (100, 4)
     bboxes: np.ndarray
-    # (100, 512)
+    # (100, 256*3)
     features_pstr: np.ndarray
 
-class CaptionsOutput(NamedTuple):
-    caption_1: np.ndarray
-    caption_2: np.ndarray
 
 class FrameOutput(NamedTuple):
     # (100,)
@@ -24,16 +22,20 @@ class FrameOutput(NamedTuple):
     # (100, 512)
     features_clip: np.ndarray
 
+
 class CropIndex(NamedTuple):
     person_id: int
     frame_id: int
 
+
 class Query(NamedTuple):
     frame_id: int
     frame_output: FrameOutput
-    captions_output: CaptionsOutput
+    # (2, d_CLIP)
+    captions_output: np.ndarray
     # (4,)
     gt_bbox: np.ndarray
+
 
 class GalleryFrame(NamedTuple):
     frame_id: int
@@ -43,6 +45,7 @@ class GalleryFrame(NamedTuple):
 
 
 Gallery = List[GalleryFrame]
+
 
 class Sample(NamedTuple):
     person_id: int
